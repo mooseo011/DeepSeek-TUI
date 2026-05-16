@@ -130,3 +130,35 @@ Long sessions in DeepSeek TUI WILL degrade and crash if you work sequentially. T
 6. **After every 3 turns, check:** context under 60%? Sub-agents still running? PRs ready to push? `cargo check` still passes?
 
 **Operating model:** Keep the parent session lean. Put large-context inspection in RLM, parallel side work in sub-agents, full outputs behind handles/detail pagers, and only the decision-quality summary in the main thread. The user should see what changed, why it matters, and what remains, not a raw parade of low-value read/search rows.
+
+## Cursor Cloud specific instructions
+
+### System dependencies
+
+Linux build requires `libdbus-1-dev` and `pkg-config` (for the `keyring` crate). The update script installs these automatically.
+
+### Rust toolchain
+
+The workspace requires **Rust 1.88+** (`rust-version = "1.88"` in root `Cargo.toml`). The update script pins and installs this version via `rustup`. Clippy and rustfmt components are included.
+
+### Building, testing, linting
+
+Standard commands per the top of this file. Quick reference:
+
+- **Build:** `cargo build`
+- **Test:** `cargo test --workspace --all-features`
+- **Lint:** `cargo clippy --workspace --all-targets --all-features`
+- **Format check:** `cargo fmt --all -- --check`
+- **Offline eval harness:** `cargo run --bin deepseek-tui --all-features -- eval` (exercises the core tool pipeline without an API key)
+
+### Running the application
+
+- `cargo run --bin deepseek -- --help` / `cargo run --bin deepseek -- --version` — works without an API key.
+- `cargo run --bin deepseek -- doctor` — diagnostics, no API key needed.
+- Interactive TUI and prompt mode (`deepseek -p "..."`) require a `DEEPSEEK_API_KEY` environment variable or `deepseek auth set`.
+
+### Known pre-existing issues
+
+- `cargo fmt --all -- --check` reports formatting diffs in several files. These are pre-existing in the repo.
+- `cargo clippy` reports 2 errors (`eprintln!` usage denied by `#![deny(clippy::print_stderr)]` in `crates/tui/src/tools/shell.rs`). Pre-existing.
+- ~32 test failures in `session_manager` and a few other modules, related to temp-directory path resolution (`managed directory path cannot be resolved`). Pre-existing.
