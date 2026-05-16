@@ -1,5 +1,5 @@
 # DeepSeek TUI
-
+**USE THE SOURCE FROM GITHUB BECAUSE THIS IS A FORK THAT ISNT ON NPM**
 > Terminal coding agent for DeepSeek V4. It runs from the `deepseek` command, streams reasoning blocks, edits local workspaces with approval gates, and includes an auto mode that chooses both model and thinking level per turn.
 
 [简体中文 README](README.zh-CN.md)
@@ -122,9 +122,13 @@ See [docs/SUBAGENTS.md](docs/SUBAGENTS.md) for the full sub-agent reference.
 ## Quickstart
 
 ```bash
-npm install -g deepseek-tui
+git clone https://github.com/Hmbown/DeepSeek-TUI.git
+cd DeepSeek-TUI
+
+cargo install --path crates/cli --locked   # provides `deepseek`
+cargo install --path crates/tui --locked   # provides `deepseek-tui`
+
 deepseek --version
-deepseek --model auto
 ```
 
 Prebuilt binaries are published for **Linux x64**, **Linux ARM64** (v0.8.8+), **macOS x64**, **macOS ARM64**, and **Windows x64**. For other targets (musl, riscv64, FreeBSD, etc.), see [Install from source](#install-from-source) or [docs/INSTALL.md](docs/INSTALL.md).
@@ -176,68 +180,10 @@ Before the real turn is sent, the app makes a small `deepseek-v4-flash` routing 
 `auto` is local to DeepSeek TUI. The upstream API never receives `model: "auto"`; it receives the concrete model and thinking setting chosen for that turn. The TUI shows the selected route, and cost tracking is charged against the model that actually ran. If the router call fails or returns an invalid answer, the app falls back to a local heuristic. Sub-agents inherit auto mode unless you assign them an explicit model.
 
 Use a fixed model or fixed thinking level when you want repeatable benchmarking, a strict cost ceiling, or a specific provider/model mapping.
-
-### Linux ARM64 (Raspberry Pi, Asahi, Graviton, HarmonyOS PC)
-
-`npm i -g deepseek-tui` works on glibc-based ARM64 Linux from v0.8.8 onward. You can also download prebuilt binaries from the [Releases page](https://github.com/Hmbown/DeepSeek-TUI/releases) and place them side by side on your `PATH`.
-
-### China / Mirror-friendly Installation
-
-If GitHub or npm downloads are slow from mainland China, use a Cargo registry mirror:
-
-```toml
-# ~/.cargo/config.toml
-[source.crates-io]
-replace-with = "tuna"
-
-[source.tuna]
-registry = "sparse+https://mirrors.tuna.tsinghua.edu.cn/crates.io-index/"
-```
-
-Then install both binaries (the dispatcher delegates to the TUI at runtime):
-
-```bash
-cargo install deepseek-tui-cli --locked   # provides `deepseek`
-cargo install deepseek-tui     --locked   # provides `deepseek-tui`
-deepseek --version
-```
-
-Prebuilt binaries can also be downloaded from [GitHub Releases](https://github.com/Hmbown/DeepSeek-TUI/releases). Use `DEEPSEEK_TUI_RELEASE_BASE_URL` for mirrored release assets.
-
-### Windows (Scoop)
-
-[Scoop](https://scoop.sh) is a Windows package manager. DeepSeek TUI is listed
-in Scoop's main bucket, but that manifest updates independently and can lag the
-GitHub/npm/Cargo release. Run `scoop update` first, then verify the installed
-version with `deepseek --version`:
-
-```bash
-scoop update
-scoop install deepseek-tui
-deepseek --version
-```
-
-Use npm or direct GitHub release downloads when you need the newest release
-before Scoop's manifest catches up.
-
-
 <details id="install-from-source">
 <summary>Install from source</summary>
 
 Works on any Tier-1 Rust target — including musl, riscv64, FreeBSD, and older ARM64 distros.
-
-```bash
-# Linux build deps (Debian/Ubuntu/RHEL):
-#   sudo apt-get install -y build-essential pkg-config libdbus-1-dev
-#   sudo dnf install -y gcc make pkgconf-pkg-config dbus-devel
-
-git clone https://github.com/Hmbown/DeepSeek-TUI.git
-cd DeepSeek-TUI
-
-cargo install --path crates/cli --locked   # requires Rust 1.88+; provides `deepseek`
-cargo install --path crates/tui --locked   # provides `deepseek-tui`
-```
-
 Both binaries are required. Cross-compilation and platform-specific notes: [docs/INSTALL.md](docs/INSTALL.md).
 
 </details>
@@ -325,48 +271,6 @@ deepseek mcp-server                              # run dispatcher MCP stdio serv
 deepseek update                                  # check for and apply binary updates
 ```
 
-Docker images are published to GHCR for release builds:
-
-```bash
-docker volume create deepseek-tui-home
-
-docker run --rm -it \
-  -e DEEPSEEK_API_KEY="$DEEPSEEK_API_KEY" \
-  -v deepseek-tui-home:/home/deepseek/.deepseek \
-  -v "$PWD:/workspace" \
-  -w /workspace \
-  ghcr.io/hmbown/deepseek-tui:latest
-```
-
-See [docs/DOCKER.md](docs/DOCKER.md) for pinned tags, local image builds,
-volume ownership notes, and non-interactive pipeline usage.
-
-### Zed / ACP
-
-DeepSeek can run as a custom Agent Client Protocol server for editors that
-spawn local ACP agents over stdio. In Zed, add a custom agent server:
-
-```json
-{
-  "agent_servers": {
-    "DeepSeek": {
-      "type": "custom",
-      "command": "deepseek",
-      "args": ["serve", "--acp"],
-      "env": {}
-    }
-  }
-}
-```
-
-The first ACP slice supports new sessions and prompt responses through your
-existing DeepSeek config/API key. Tool-backed editing and checkpoint replay are
-not exposed through ACP yet.
-
-Community-maintained adapter: [acp-deepseek-adapter](https://github.com/rockeverm3m/acp-deepseek-adapter)
-bridges `deepseek exec --auto` to `cc-connect` for users who need tool-backed
-ACP workflows outside the built-in Zed slice.
-
 ### Keyboard Shortcuts
 
 | Key | Action |
@@ -393,6 +297,7 @@ Full shortcut catalog: [docs/KEYBINDINGS.md](docs/KEYBINDINGS.md).
 | **Plan** 🔍 | Read-only investigation — model explores and proposes a plan before making changes; multi-step investigations use `checklist_write` |
 | **Agent** 🤖 | Default interactive mode — multi-step tool use with approval gates; substantial work is tracked with `checklist_write` |
 | **YOLO** ⚡ | Auto-approve all tools in a trusted workspace; multi-step work still keeps a visible checklist |
+| **SWARM** | Added by me in this fork adds a swarm use: /swarm on or /swarm off |
 
 ---
 
@@ -514,7 +419,7 @@ Full Changelog: [CHANGELOG.md](CHANGELOG.md).
 - **[OpenWarp](https://github.com/zerx-lab/warp)** — thank you for prioritizing DeepSeek TUI support and for collaborating on a better terminal-agent experience.
 - **[Open Design](https://github.com/nexu-io/open-design)** — thank you for support and collaboration around design-forward agent workflows.
 
-This project ships with help from a growing community of contributors:
+This project ships with help from a growing community of contributors (this is from the original repo):
 
 - **[merchloubna70-dot](https://github.com/merchloubna70-dot)** — 28 PRs spanning features, fixes, and VS Code extension scaffolding (#645–#681)
 - **[WyxBUPT-22](https://github.com/WyxBUPT-22)** — Markdown rendering for tables, bold/italic, and horizontal rules (#579)
@@ -572,7 +477,7 @@ This project ships with help from a growing community of contributors:
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). Pull requests welcome — check the [open issues](https://github.com/Hmbown/DeepSeek-TUI/issues) for good first contributions.
 
-Support: [Buy me a coffee](https://www.buymeacoffee.com/hmbown).
+
 
 > [!Note]
 > *Not affiliated with DeepSeek Inc.*
