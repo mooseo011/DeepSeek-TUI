@@ -66,7 +66,7 @@ impl std::fmt::Display for ToolError {
             Self::PathEscape { path } => {
                 write!(
                     f,
-                    "Failed to resolve path '{}': path escapes workspace",
+                    "Failed to resolve path '{}': path escapes workspace; provide a relative path within the workspace or trust the external path",
                     path.display()
                 )
             }
