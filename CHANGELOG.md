@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`/swarm` orchestrator-led multi-agent mode.** A new slash command
+  (`/swarm`, with `fengqun` / `蜂群` aliases) toggles a session-level
+  swarm flag. While active, every outbound user message is wrapped at
+  wire-time with a standing orchestrator brief that tells the assistant
+  to decompose the request, dispatch parallel `agent_open` worker
+  sub-agents in one turn, gather results via `agent_eval`, verify side
+  effects, and integrate one coherent answer. The visible "User"
+  transcript cell keeps showing the raw input — only the wire payload
+  carries the wrapper. The wrapper bytes are stable turn-over-turn so
+  DeepSeek's automatic prefix cache keeps hitting on the system prompt,
+  tool list, and prior history; the brief itself mandates
+  cache-friendly worker patterns (stable session names across turns,
+  `fork_context: false` by default for fresh narrow contexts,
+  `resident_file` leases for repeated single-file work, `handle_read`
+  over re-quoting transcripts, parallel `agent_open` calls in a single
+  turn). Sub-commands: `/swarm`, `/swarm on`, `/swarm off`,
+  `/swarm status`, `/swarm brief <text>`, `/swarm brief clear`, and
+  `/swarm <task>` for a one-shot activation-plus-dispatch. The pinned
+  session brief lets the user park standing context (focus areas,
+  exclusions) without restating it every turn.
+
 ## [0.8.38] - 2026-05-15
 
 ### Changed

@@ -3824,10 +3824,21 @@ fn queued_message_content_for_app(
         &app.workspace,
         cwd,
     );
-    if let Some(skill_instruction) = message.skill_instruction.as_ref() {
+    let base = if let Some(skill_instruction) = message.skill_instruction.as_ref() {
         format!("{skill_instruction}\n\n---\n\nUser request: {user_request}")
     } else {
         user_request
+    };
+    // Swarm wrapper. The orchestrator brief is intentionally byte-stable
+    // across turns so DeepSeek's prefix cache keeps hitting the system
+    // prompt + tool list + prior history. The visible "User" cell in the
+    // transcript still shows `message.display` — only the wire content
+    // carries this wrapper. Skill instructions stay on the inside of the
+    // wrapper so the orchestrator sees them as part of the user request.
+    if app.swarm_active {
+        crate::prompts::swarm_orchestrator_wrap(&base, app.swarm_brief.as_deref())
+    } else {
+        base
     }
 }
 

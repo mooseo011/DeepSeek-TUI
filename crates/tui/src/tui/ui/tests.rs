@@ -1641,6 +1641,81 @@ fn terminal_probe_timeout_uses_tui_config_and_clamps() {
 }
 
 #[test]
+fn swarm_mode_wraps_outgoing_user_content_with_orchestrator_brief() {
+    let mut app = create_test_app();
+    app.swarm_active = true;
+    let message = QueuedMessage::new("split this into 3 subtasks".to_string(), None);
+
+    let content = queued_message_content_for_app(&app, &message, None);
+
+    assert!(
+        content.contains("<swarm_orchestrator>"),
+        "swarm wrapper should be present in outgoing content"
+    );
+    assert!(
+        content.contains("User request: split this into 3 subtasks"),
+        "user request must survive the wrap"
+    );
+    assert!(
+        content.contains("agent_open"),
+        "orchestrator brief should reference the agent_open delegation tool"
+    );
+    assert_eq!(
+        message.display, "split this into 3 subtasks",
+        "the displayed user cell must still show the raw input"
+    );
+}
+
+#[test]
+fn swarm_mode_off_leaves_user_content_untouched() {
+    let app = create_test_app();
+    assert!(!app.swarm_active, "swarm should default off");
+    let message = QueuedMessage::new("plain prompt".to_string(), None);
+
+    let content = queued_message_content_for_app(&app, &message, None);
+
+    assert!(!content.contains("<swarm_orchestrator>"));
+    assert_eq!(content, "plain prompt");
+}
+
+#[test]
+fn swarm_brief_is_embedded_in_the_orchestrator_wrapper() {
+    let mut app = create_test_app();
+    app.swarm_active = true;
+    app.swarm_brief = Some("Focus on the auth crate; do not touch web/.".to_string());
+    let message = QueuedMessage::new("clean up logging".to_string(), None);
+
+    let content = queued_message_content_for_app(&app, &message, None);
+
+    assert!(content.contains("## Session brief"));
+    assert!(content.contains("Focus on the auth crate; do not touch web/."));
+    assert!(content.contains("User request: clean up logging"));
+}
+
+#[test]
+fn swarm_wrapper_is_byte_stable_across_turns_for_cache_hits() {
+    // Cache hits on DeepSeek's automatic prefix cache require the wrapper
+    // text to be exactly identical across user turns. Verify the wrapper
+    // bytes don't drift when the user submits two consecutive prompts
+    // with the same swarm state.
+    let mut app = create_test_app();
+    app.swarm_active = true;
+    let m1 = QueuedMessage::new("first ask".to_string(), None);
+    let m2 = QueuedMessage::new("second ask".to_string(), None);
+
+    let c1 = queued_message_content_for_app(&app, &m1, None);
+    let c2 = queued_message_content_for_app(&app, &m2, None);
+
+    // Strip the per-turn user-request line and compare the wrapper bytes.
+    let wrapper1 = c1.split("User request:").next().unwrap();
+    let wrapper2 = c2.split("User request:").next().unwrap();
+    assert_eq!(
+        wrapper1, wrapper2,
+        "the swarm wrapper must be byte-stable between turns so DeepSeek's prefix cache keeps hitting"
+    );
+}
+
+#[test]
 fn file_mentions_add_local_text_context_to_model_payload() {
     let tmpdir = TempDir::new().expect("tempdir");
     std::fs::write(

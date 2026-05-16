@@ -979,7 +979,7 @@ fn english(id: MessageId) -> &'static str {
         MessageId::CmdStatuslineDescription => "Configure which items appear in the footer",
         MessageId::CmdSubagentsDescription => "List sub-agent status",
         MessageId::CmdSwarmDescription => {
-            "Run a multi-agent fanout turn (sequential | mixture | distill | deliberate)"
+            "Toggle orchestrator-led swarm mode that fans tasks out to parallel worker sub-agents (cache-aware)"
         }
         MessageId::CmdSystemDescription => "Show current system prompt",
         MessageId::CmdTaskDescription => "Manage background tasks",
@@ -1364,7 +1364,7 @@ fn japanese(id: MessageId) -> Option<&'static str> {
         MessageId::CmdStatuslineDescription => "フッターに表示する項目を設定",
         MessageId::CmdSubagentsDescription => "サブエージェントの状態を一覧表示",
         MessageId::CmdSwarmDescription => {
-            "マルチエージェントのファンアウトターンを実行（sequential | mixture | distill | deliberate）"
+            "オーケストレーター主導のスウォームモードを切替え、タスクを並列ワーカーサブエージェントに分配（キャッシュ対応）"
         }
         MessageId::CmdSystemDescription => "現在のシステムプロンプトを表示",
         MessageId::CmdTaskDescription => "バックグラウンドタスクを管理",
@@ -1700,7 +1700,7 @@ fn chinese_simplified(id: MessageId) -> Option<&'static str> {
         MessageId::CmdStatuslineDescription => "配置底栏要显示哪些条目",
         MessageId::CmdSubagentsDescription => "列出子代理状态",
         MessageId::CmdSwarmDescription => {
-            "运行多代理扇出轮次（sequential | mixture | distill | deliberate）"
+            "切换由编排器主导的蜂群模式，将任务并行分发给工作子代理（缓存友好）"
         }
         MessageId::CmdSystemDescription => "显示当前系统提示词",
         MessageId::CmdTaskDescription => "管理后台任务",
@@ -2036,7 +2036,7 @@ fn portuguese_brazil(id: MessageId) -> Option<&'static str> {
         MessageId::CmdStatuslineDescription => "Configurar quais itens aparecem no rodapé",
         MessageId::CmdSubagentsDescription => "Listar o status dos sub-agentes",
         MessageId::CmdSwarmDescription => {
-            "Executar turno fanout multi-agente (sequential | mixture | distill | deliberate)"
+            "Alternar o modo enxame liderado pelo orquestrador que distribui tarefas em paralelo a sub-agentes trabalhadores (com cache)"
         }
         MessageId::CmdSystemDescription => "Exibir o prompt de sistema atual",
         MessageId::CmdTaskDescription => "Gerenciar tarefas em segundo plano",
@@ -2424,7 +2424,7 @@ fn spanish_latin_america(id: MessageId) -> Option<&'static str> {
         }
         MessageId::CmdSubagentsDescription => "Listar el estado de los sub-agentes",
         MessageId::CmdSwarmDescription => {
-            "Ejecutar turno fanout multi-agente (sequential | mixture | distill | deliberate)"
+            "Alternar el modo enjambre dirigido por el orquestador que reparte tareas en paralelo a sub-agentes trabajadores (consciente de caché)"
         }
         MessageId::CmdSystemDescription => "Mostrar el prompt de sistema actual",
         MessageId::CmdTaskDescription => "Gestionar tareas en segundo plano",

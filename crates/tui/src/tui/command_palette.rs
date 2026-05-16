@@ -411,6 +411,7 @@ fn command_runs_directly(name: &str) -> bool {
             | "config"
             | "yolo"
             | "agent"
+            | "swarm"
             | "plan"
             | "trust"
             | "logout"

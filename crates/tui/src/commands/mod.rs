@@ -29,6 +29,7 @@ pub mod share;
 mod skills;
 mod stash;
 mod status;
+mod swarm;
 mod task;
 mod user_commands;
 
@@ -211,6 +212,12 @@ pub const COMMANDS: &[CommandInfo] = &[
         aliases: &["daili"],
         usage: "/agent [N] <task>",
         description_id: MessageId::CmdAgentDescription,
+    },
+    CommandInfo {
+        name: "swarm",
+        aliases: &["fengqun", "蜂群"],
+        usage: "/swarm [on|off|status|brief <text>|<task>]",
+        description_id: MessageId::CmdSwarmDescription,
     },
     CommandInfo {
         name: "links",
@@ -555,6 +562,7 @@ pub fn execute(cmd: &str, app: &mut App) -> CommandResult {
         "hooks" | "hook" | "gouzi" => hooks::hooks(app, arg),
         "subagents" | "agents" | "zhinengti" => core::subagents(app),
         "agent" | "daili" => agent(app, arg),
+        "swarm" | "fengqun" | "蜂群" => swarm::swarm(app, arg),
         "links" | "dashboard" | "api" | "lianjie" => core::deepseek_links(app),
         "feedback" => feedback::feedback(app, arg),
         "home" | "stats" | "overview" | "zhuye" | "shouye" => core::home_dashboard(app),

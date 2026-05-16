@@ -366,6 +366,46 @@ pub const COMPACT_TEMPLATE: &str = include_str!("prompts/compact.md");
 /// can override the user's current request (#725).
 pub const MEMORY_GUIDANCE: &str = include_str!("prompts/memory_guidance.md");
 
+/// Standing instructions injected into every user message while
+/// `/swarm` mode is active. The text is byte-stable across turns so a
+/// non-trivial chunk of the per-turn prefill remains identical and
+/// DeepSeek's prefix cache can hit on the slack between turns. See
+/// `crates/tui/src/commands/swarm.rs` and the build-up in
+/// `queued_message_content_for_app` for the injection point.
+pub const SWARM_ORCHESTRATOR_BRIEF: &str = include_str!("prompts/swarm_orchestrator.md");
+
+/// Wrap a raw user request with the swarm orchestrator standing brief
+/// plus any custom session brief the user pinned via `/swarm brief …`.
+///
+/// The wire payload looks like:
+///
+/// ```text
+/// <swarm_orchestrator>
+///   ... standing brief (byte-stable, cache-friendly) ...
+///   ## Session brief
+///   <custom_brief>...optional...</custom_brief>
+/// </swarm_orchestrator>
+///
+/// User request: <raw user text>
+/// ```
+///
+/// The user-facing "User" cell in the transcript continues to show the
+/// raw request — only the wire content carries the orchestrator wrapper.
+#[must_use]
+pub fn swarm_orchestrator_wrap(user_request: &str, session_brief: Option<&str>) -> String {
+    let trimmed_brief = session_brief.map(str::trim).filter(|s| !s.is_empty());
+    let session_block = match trimmed_brief {
+        Some(brief) => format!(
+            "\n\n## Session brief\n\n<session_brief>\n{brief}\n</session_brief>"
+        ),
+        None => String::new(),
+    };
+    format!(
+        "<swarm_orchestrator>\n{brief}{session_block}\n</swarm_orchestrator>\n\nUser request: {user_request}",
+        brief = SWARM_ORCHESTRATOR_BRIEF,
+    )
+}
+
 // ── Legacy prompt constants (kept for backwards compatibility) ────────
 
 /// Legacy base prompt (agent.txt — now decomposed into base.md + overlays).
@@ -801,6 +841,51 @@ mod tests {
             language_at < persistence_at,
             "execution-discipline block must come after the early sections"
         );
+    }
+
+    #[test]
+    fn swarm_orchestrator_brief_is_non_empty_and_mentions_caching() {
+        // Sanity-check the prompt file is bundled and carries the key
+        // contract terms — orchestrator workflow, parallel dispatch, and
+        // prefix-cache discipline. These are the load-bearing pieces the
+        // /swarm command relies on; the rest of the prose can drift.
+        assert!(!SWARM_ORCHESTRATOR_BRIEF.trim().is_empty());
+        for needle in [
+            "agent_open",
+            "agent_eval",
+            "prefix cache",
+            "fork_context",
+            "resident_file",
+        ] {
+            assert!(
+                SWARM_ORCHESTRATOR_BRIEF.contains(needle),
+                "swarm orchestrator brief missing required term: {needle}"
+            );
+        }
+    }
+
+    #[test]
+    fn swarm_orchestrator_wrap_includes_request_and_brief() {
+        let wrapped = swarm_orchestrator_wrap("fix the failing test", None);
+        assert!(wrapped.contains("<swarm_orchestrator>"));
+        assert!(wrapped.contains("</swarm_orchestrator>"));
+        assert!(wrapped.contains("User request: fix the failing test"));
+        assert!(!wrapped.contains("## Session brief"));
+
+        let with_brief =
+            swarm_orchestrator_wrap("refactor", Some("Repo is mid-migration to V4 prompts."));
+        assert!(with_brief.contains("## Session brief"));
+        assert!(with_brief.contains("Repo is mid-migration to V4 prompts."));
+        assert!(with_brief.contains("User request: refactor"));
+    }
+
+    #[test]
+    fn swarm_orchestrator_wrap_is_byte_stable_across_calls() {
+        // Cache-friendliness contract: same inputs must produce the same
+        // bytes so DeepSeek's prefix cache hits between user turns.
+        let a = swarm_orchestrator_wrap("do something", Some("focus area: tests"));
+        let b = swarm_orchestrator_wrap("do something", Some("focus area: tests"));
+        assert_eq!(a, b);
     }
 
     #[test]

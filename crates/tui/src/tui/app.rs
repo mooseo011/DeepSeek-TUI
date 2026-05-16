@@ -973,6 +973,22 @@ pub struct App {
     pub tool_log: Vec<String>,
     /// Active skill to apply to next user message
     pub active_skill: Option<String>,
+    /// When true, the user has activated swarm mode via `/swarm on`.
+    /// While active, every outbound user message is wrapped with the
+    /// stable orchestrator brief in `prompts::swarm_orchestrator_wrap`
+    /// so the assistant decomposes the request and dispatches parallel
+    /// `agent_open` workers. The visible `User` history cell still
+    /// shows the user's raw text. Persists across user turns within a
+    /// session; defaults to `false` on a fresh app boot and is not
+    /// serialized into saved sessions today (the user re-activates
+    /// after `/load`).
+    pub swarm_active: bool,
+    /// Optional user-pinned session brief surfaced inside the swarm
+    /// orchestrator wrapper. Set via `/swarm brief <text>` and cleared
+    /// with `/swarm brief clear`. Lets the user park standing context
+    /// (e.g. "focus on the auth crate; don't touch web/") without
+    /// re-stating it every turn.
+    pub swarm_brief: Option<String>,
     /// Cached (name, description) pairs from the skill registry.
     /// Populated once at startup and refreshed on install/uninstall so
     /// the slash menu can show skills without filesystem I/O on every keystroke.
@@ -1581,6 +1597,8 @@ impl App {
             mcp_restart_required: false,
             tool_log: Vec::new(),
             active_skill: None,
+            swarm_active: false,
+            swarm_brief: None,
             cached_skills,
             tool_cells: HashMap::new(),
             tool_details_by_cell: HashMap::new(),
