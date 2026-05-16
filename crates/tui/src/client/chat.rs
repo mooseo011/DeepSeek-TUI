@@ -108,6 +108,16 @@ impl DeepSeekClient {
             self.api_provider,
         );
 
+        // Non-streaming path must also sanitize thinking-mode messages, matching
+        // the streaming path at line ~193. Without this, callers using
+        // create_message() with a reasoning model + tool-calls get HTTP 400.
+        let _replay_input_tokens = sanitize_thinking_mode_messages(
+            &mut body,
+            &request.model,
+            request.reasoning_effort.as_deref(),
+            self.api_provider,
+        );
+
         let url = api_url(&self.base_url, "chat/completions");
         let open_timeout = stream_open_timeout();
         let response = match tokio_timeout(
@@ -135,7 +145,10 @@ impl DeepSeekClient {
 
         let response_text = response.text().await.unwrap_or_default();
         let value: Value =
-            serde_json::from_str(&response_text).context("Failed to parse Chat API JSON")?;
+            serde_json::from_str(&response_text).with_context(|| {
+                let preview = &response_text[..response_text.len().min(500)];
+                format!("Failed to parse Chat API JSON. Response preview: {preview}")
+            })?;
         parse_chat_message(&value)
     }
 }
@@ -334,8 +347,11 @@ impl DeepSeekClient {
                         if !line_buf.is_empty() {
                             let data = std::mem::take(&mut line_buf);
                             if data.trim() == "[DONE]" {
-                                // Stream complete
-                            } else if let Ok(chunk_json) = serde_json::from_str::<Value>(&data) {
+                            // Emit MessageStop so the caller can finalise
+                            // cost estimation even when the server sends
+                            // [DONE] as the final SSE event (no usage chunk).
+                            yield Ok(StreamEvent::MessageStop);
+                        } else if let Ok(chunk_json) = serde_json::from_str::<Value>(&data) {
                                 // Parse the SSE chunk into stream events
                                 for mut event in parse_sse_chunk(
                                     &chunk_json,
@@ -365,7 +381,10 @@ impl DeepSeekClient {
                         continue;
                     }
 
-                    if let Some(data) = line.strip_prefix("data: ") {
+                    if let Some(data) = line
+                        .strip_prefix("data:")
+                        .map(|s| s.trim_start())
+                    {
                         line_buf.push_str(data);
                     }
                     // Ignore other SSE fields (event:, id:, retry:)

@@ -336,7 +336,9 @@ impl BackgroundShell {
         // event loop that calls list_jobs() → poll() → collect_output().
         #[cfg(unix)]
         if let Some(ShellChild::Process(ref mut proc)) = self.child {
-            let _ = kill_child_process_group(proc);
+            if let Err(e) = kill_child_process_group(proc) {
+                eprintln!("WARNING: failed to kill process group: {e}");
+            }
         }
         if let Some(handle) = self.stdout_thread.take() {
             let _ = handle.join();
@@ -862,8 +864,12 @@ impl ShellManager {
             })
         } else {
             // Timeout - kill the process
-            #[cfg(unix)]
-            let _ = kill_child_process_group(&mut child);
+        #[cfg(unix)]
+        if let Err(e) = kill_child_process_group(&mut child) {
+            eprintln!(
+                "WARNING: failed to kill process group after timeout: {e}"
+            );
+        }
             #[cfg(not(unix))]
             let _ = child.kill();
             let status = child.wait().ok();

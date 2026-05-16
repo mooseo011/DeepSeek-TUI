@@ -416,7 +416,13 @@ impl ToolSpec for WriteFileTool {
         // to render an inline diff in the tool result.
         let existed_before = file_path.exists();
         let prior_contents = if existed_before {
-            fs::read_to_string(&file_path).unwrap_or_default()
+            fs::read_to_string(&file_path).map_err(|e| {
+                ToolError::execution_failed(format!(
+                    "Failed to read existing file {}: {}",
+                    file_path.display(),
+                    e
+                ))
+            })?
         } else {
             String::new()
         };
@@ -432,7 +438,7 @@ impl ToolSpec for WriteFileTool {
             })?;
         }
 
-        fs::write(&file_path, file_content).map_err(|e| {
+        crate::utils::write_atomic(&file_path, file_content.as_bytes()).map_err(|e| {
             ToolError::execution_failed(format!("Failed to write {}: {}", file_path.display(), e))
         })?;
 
@@ -586,7 +592,7 @@ impl ToolSpec for EditFileTool {
             (contents.replace(search, replace), count, None)
         };
 
-        fs::write(&file_path, &updated).map_err(|e| {
+        crate::utils::write_atomic(&file_path, updated.as_bytes()).map_err(|e| {
             ToolError::execution_failed(format!("Failed to write {}: {}", file_path.display(), e))
         })?;
 

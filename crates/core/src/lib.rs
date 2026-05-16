@@ -493,12 +493,19 @@ impl ThreadManager {
             return Ok(None);
         };
         let mut thread = to_protocol_thread(metadata);
+        let was_archived = thread.status == ThreadStatus::Archived;
         thread.status = ThreadStatus::Running;
         thread.updated_at = chrono::Utc::now().timestamp();
         thread.cwd = params
             .cwd
             .clone()
             .unwrap_or_else(|| fallback_cwd.to_path_buf());
+        if was_archived {
+            eprintln!(
+                "WARNING: resumed archived thread {} which will now be un-archived",
+                thread.id
+            );
+        }
         self.persist_thread(&thread, None)?;
         self.running_threads
             .insert(thread.id.clone(), thread.clone());
@@ -683,10 +690,13 @@ impl Runtime {
     }
 
     fn persisted_thread_data(&self, thread_id: &str) -> Result<Value> {
-        let history = self
+        const CAP: usize = 500;
+        let messages = self
             .thread_manager
             .state_store()
-            .list_messages(thread_id, Some(500))?
+            .list_messages(thread_id, Some(CAP))?;
+        let truncated = messages.len() >= CAP;
+        let history = messages
             .into_iter()
             .map(|message| {
                 json!({
@@ -713,6 +723,7 @@ impl Runtime {
 
         Ok(json!({
             "history": history,
+            "truncated": truncated,
             "checkpoint": checkpoint
         }))
     }

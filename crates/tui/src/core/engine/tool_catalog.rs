@@ -711,6 +711,7 @@ pub(super) async fn execute_code_execution_tool(
         .map_err(|e| ToolError::execution_failed(format!("tempfile write failed: {e}")))?;
 
     let mut cmd = tokio::process::Command::new(&program);
+    cmd.kill_on_drop(true);
     for arg in &args {
         cmd.arg(arg);
     }

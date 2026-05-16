@@ -53,10 +53,25 @@ fn normalize_managed_dir(path: PathBuf) -> std::io::Result<PathBuf> {
             "managed directory path cannot contain traversal components",
         ));
     }
-    if path.is_absolute() {
-        return Ok(path);
-    }
-    std::env::current_dir().map(|cwd| cwd.join(path))
+    let path = if path.is_absolute() {
+        // Canonicalize absolute paths to catch symlink injection and
+        // ensure the resolved target is stable.
+        match path.canonicalize() {
+            Ok(canonical) => canonical,
+            Err(_) => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    format!(
+                        "managed directory path cannot be resolved: {}",
+                        path.display()
+                    ),
+                ));
+            }
+        }
+    } else {
+        std::env::current_dir().map(|cwd| cwd.join(path))?
+    };
+    Ok(path)
 }
 
 /// Persisted queued message for offline/degraded mode.

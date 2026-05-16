@@ -156,8 +156,20 @@ impl StateStore {
     }
 
     fn conn(&self) -> Result<Connection> {
-        Connection::open(&self.db_path)
-            .with_context(|| format!("failed to open state db {}", self.db_path.display()))
+        let conn = Connection::open(&self.db_path)
+            .with_context(|| format!("failed to open state db {}", self.db_path.display()))?;
+        conn.execute_batch(
+            "PRAGMA foreign_keys = ON;
+             PRAGMA journal_mode = WAL;
+             PRAGMA busy_timeout = 5000;",
+        )
+        .with_context(|| {
+            format!(
+                "failed to set pragmas on state db {}",
+                self.db_path.display()
+            )
+        })?;
+        Ok(conn)
     }
 
     fn init_schema(&self) -> Result<()> {
@@ -563,7 +575,19 @@ impl StateStore {
                     params![thread_id, checkpoint_id],
                     |row| {
                         let state_json: String = row.get(2)?;
-                        let state = serde_json::from_str(&state_json).unwrap_or(Value::Null);
+                        let state = serde_json::from_str(&state_json)
+                            .map_err(|e| {
+                                eprintln!(
+                                    "WARNING: corrupt checkpoint {} for thread {}: \
+                                     parsing {} bytes of state JSON failed: {e}. \
+                                     First 200 bytes: {}",
+                                    checkpoint_id,
+                                    thread_id,
+                                    state_json.len(),
+                                    &state_json[..state_json.len().min(200)]
+                                );
+                            })
+                            .unwrap_or(Value::Null);
                         Ok(CheckpointRecord {
                             thread_id: row.get(0)?,
                             checkpoint_id: row.get(1)?,
@@ -584,7 +608,18 @@ impl StateStore {
             params![thread_id],
             |row| {
                 let state_json: String = row.get(2)?;
-                let state = serde_json::from_str(&state_json).unwrap_or(Value::Null);
+                let state = serde_json::from_str(&state_json)
+                    .map_err(|e| {
+                        eprintln!(
+                            "WARNING: corrupt latest checkpoint for thread {}: \
+                             parsing {} bytes of state JSON failed: {e}. \
+                             First 200 bytes: {}",
+                            thread_id,
+                            state_json.len(),
+                            &state_json[..state_json.len().min(200)]
+                        );
+                    })
+                    .unwrap_or(Value::Null);
                 Ok(CheckpointRecord {
                     thread_id: row.get(0)?,
                     checkpoint_id: row.get(1)?,
@@ -616,7 +651,16 @@ impl StateStore {
         let mut out = Vec::new();
         while let Some(row) = rows.next().context("failed to iterate checkpoint rows")? {
             let state_json: String = row.get(2).context("failed to read checkpoint state json")?;
-            let state = serde_json::from_str(&state_json).unwrap_or(Value::Null);
+            let state = serde_json::from_str(&state_json)
+                .map_err(|e| {
+                    eprintln!(
+                        "WARNING: corrupt checkpoint in list for thread {}: \
+                         parsing {} bytes of state JSON failed: {e}",
+                        thread_id,
+                        state_json.len()
+                    );
+                })
+                .unwrap_or(Value::Null);
             out.push(CheckpointRecord {
                 thread_id: row.get(0).context("failed to read checkpoint thread id")?,
                 checkpoint_id: row.get(1).context("failed to read checkpoint id")?,
@@ -771,6 +815,53 @@ impl StateStore {
                 )
             })?;
         writeln!(file, "{encoded}").context("failed to append session index entry")?;
+
+        // Compact every 64 writes to keep the JSONL from growing without bound.
+        let count_path = self
+            .session_index_path
+            .with_extension("jsonl.count");
+        let compact_threshold: u64 = 64;
+        let current = match std::fs::read_to_string(&count_path) {
+            Ok(s) => s.trim().parse::<u64>().unwrap_or(0),
+            Err(_) => 0,
+        };
+        let next = current.saturating_add(1);
+        if next >= compact_threshold {
+            let map = self.session_index_map()?;
+            let tmp_path = self
+                .session_index_path
+                .with_extension("jsonl.compacting");
+            {
+                let mut tmp = std::fs::File::create(&tmp_path).with_context(|| {
+                    format!(
+                        "failed to create compaction temp {}",
+                        tmp_path.display()
+                    )
+                })?;
+                for entry in map.values() {
+                    let line = serde_json::to_string(entry)
+                        .context("failed to serialize compacted entry")?;
+                    writeln!(tmp, "{line}").with_context(|| {
+                        format!("failed to write compacted entry to {}", tmp_path.display())
+                    })?;
+                }
+            }
+            std::fs::rename(&tmp_path, &self.session_index_path).with_context(|| {
+                format!(
+                    "failed to rename compaction temp {} → {}",
+                    tmp_path.display(),
+                    self.session_index_path.display()
+                )
+            })?;
+            std::fs::write(&count_path, b"0").with_context(|| {
+                format!("failed to reset compaction counter {}", count_path.display())
+            })?;
+        } else {
+            std::fs::write(&count_path, next.to_string().as_bytes()).with_context(|| {
+                format!("failed to write compaction counter {}", count_path.display())
+            })?;
+        }
+
         Ok(())
     }
 

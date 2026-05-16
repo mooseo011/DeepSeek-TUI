@@ -782,7 +782,7 @@ fn apply_pending_writes(pending: &[PendingWrite]) -> Result<(), ToolError> {
                     ))
                 })?;
             }
-            fs::write(&entry.path, content).map_err(|e| {
+            crate::utils::write_atomic(&entry.path, content.as_bytes()).map_err(|e| {
                 ToolError::execution_failed(format!(
                     "Failed to write {}: {}",
                     entry.path.display(),

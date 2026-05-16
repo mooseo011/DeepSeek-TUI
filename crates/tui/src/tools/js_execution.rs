@@ -96,6 +96,7 @@ pub async fn execute_js_execution_tool(
         .map_err(|e| ToolError::execution_failed(format!("tempfile write failed: {e}")))?;
 
     let mut cmd = tokio::process::Command::new(&node);
+    cmd.kill_on_drop(true);
     cmd.arg(&script_path);
     cmd.current_dir(workspace);
 

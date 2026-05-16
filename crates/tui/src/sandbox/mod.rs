@@ -411,23 +411,22 @@ impl SandboxManager {
         let mut command = vec![spec.program.clone()];
         command.extend(spec.args.clone());
 
-        // Add sandbox indicator to environment
+        // Landlock requires a helper binary to sandbox a subprocess (it
+        // restricts the current process, so we'd need a separate launcher).
+        // Since no helper is bundled, we must NOT claim sandboxing — doing so
+        // would mislead downstream code into trusting non-existent isolation.
         let mut env = spec.env.clone();
-        env.insert("DEEPSEEK_SANDBOX".to_string(), "landlock".to_string());
-
-        // Note: Full Landlock implementation would use a helper binary that:
-        // 1. Sets up the Landlock ruleset based on policy
-        // 2. Applies restrictions to itself
-        // 3. Execs the target command
-        //
-        // For now, we just mark that Landlock would be used
+        env.insert(
+            "DEEPSEEK_SANDBOX".to_string(),
+            "landlock-unavailable".to_string(),
+        );
 
         ExecEnv {
             command,
             cwd: spec.cwd.clone(),
             env,
             timeout: spec.timeout,
-            sandbox_type: SandboxType::LinuxLandlock,
+            sandbox_type: SandboxType::None,
             policy: spec.sandbox_policy.clone(),
         }
     }

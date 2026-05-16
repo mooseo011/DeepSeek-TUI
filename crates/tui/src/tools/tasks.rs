@@ -1,7 +1,6 @@
 //! Durable task, gate, and PR-attempt tools.
 
 use std::path::{Path, PathBuf};
-use std::process::Stdio;
 use std::time::Instant;
 
 use async_trait::async_trait;
@@ -286,33 +285,45 @@ impl ToolSpec for TaskGateRunTool {
             })));
         }
 
+        // Delegate to ExecShellTool so sandboxing, process-group isolation,
+        // kill_on_drop, and parent_death_signal are applied uniformly.
         let started = Instant::now();
-        let mut cmd = Command::new("/bin/sh");
-        cmd.arg("-lc")
-            .arg(&command)
-            .current_dir(&cwd)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-        let output =
-            tokio::time::timeout(std::time::Duration::from_millis(timeout_ms), cmd.output()).await;
+        let shell_input = json!({
+            "command": command,
+            "timeout_ms": timeout_ms,
+            "cwd": cwd.to_string_lossy(),
+            "background": false,
+        });
+        let shell_result = ExecShellTool.execute(shell_input, context).await;
 
         let duration_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
-        let (exit_code, stdout, stderr, timed_out, spawn_error) = match output {
-            Ok(Ok(out)) => (
-                out.status.code(),
-                String::from_utf8_lossy(&out.stdout).to_string(),
-                String::from_utf8_lossy(&out.stderr).to_string(),
-                false,
-                None,
-            ),
-            Ok(Err(err)) => (
-                None,
-                String::new(),
-                String::new(),
-                false,
-                Some(err.to_string()),
-            ),
-            Err(_) => (None, String::new(), String::new(), true, None),
+
+        let (exit_code, stdout, stderr, timed_out, spawn_error): (
+            Option<i32>,
+            String,
+            String,
+            bool,
+            Option<String>,
+        ) = match &shell_result {
+            Ok(result) => {
+                let meta = result.metadata.as_ref();
+                let code = meta
+                    .and_then(|m| m.get("exit_code"))
+                    .and_then(Value::as_i64)
+                    .map(|c| c as i32);
+                let out = result.content.clone();
+                let err = meta
+                    .and_then(|m| m.get("stderr"))
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string();
+                let to = meta
+                    .and_then(|m| m.get("status"))
+                    .map(|s| s.as_str() == Some("timeout"))
+                    .unwrap_or(false);
+                (code, out, err, to, None)
+            }
+            Err(e) => (None, String::new(), e.to_string(), false, None),
         };
 
         let full_log = format!(

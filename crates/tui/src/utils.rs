@@ -241,7 +241,9 @@ where
                 location,
             );
             // Write crash dump (best-effort)
-            let _ = write_panic_dump(name, location, &msg);
+            if let Err(e) = write_panic_dump(name, location, &msg) {
+                eprintln!("WARNING: failed to write panic dump: {e}");
+            }
         }
     })
 }
@@ -309,7 +311,9 @@ where
                 target: "panic",
                 "Blocking task '{name}' panicked at {location}: {msg}",
             );
-            let _ = write_panic_dump(name, location, &msg);
+            if let Err(e) = write_panic_dump(name, location, &msg) {
+                eprintln!("WARNING: failed to write panic dump: {e}");
+            }
         }
     })
 }

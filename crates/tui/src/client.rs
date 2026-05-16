@@ -225,7 +225,10 @@ impl TokenBucket {
         if self.refill_per_sec <= 0.0 {
             return Some(Duration::from_secs(1));
         }
-        Some(Duration::from_secs_f64(needed / self.refill_per_sec))
+        const MAX_DELAY_SECS: f64 = 300.0;
+        Some(Duration::from_secs_f64(
+            (needed / self.refill_per_sec).min(MAX_DELAY_SECS),
+        ))
     }
 }
 
@@ -310,15 +313,21 @@ pub(super) async fn bounded_error_text(response: reqwest::Response, max_bytes: u
     use futures_util::StreamExt;
     let mut stream = response.bytes_stream();
     let mut buf = Vec::with_capacity(max_bytes.min(8192));
+    let mut truncated = false;
     while let Some(chunk) = stream.next().await {
         let Ok(chunk) = chunk else { break };
         let remaining = max_bytes.saturating_sub(buf.len());
         if remaining == 0 {
+            truncated = true;
             break;
         }
         buf.extend_from_slice(&chunk[..chunk.len().min(remaining)]);
     }
-    String::from_utf8_lossy(&buf).into_owned()
+    let mut text = String::from_utf8_lossy(&buf).into_owned();
+    if truncated {
+        text.push_str(" [TRUNCATED]");
+    }
+    text
 }
 
 fn validate_base_url_security(base_url: &str) -> Result<()> {
