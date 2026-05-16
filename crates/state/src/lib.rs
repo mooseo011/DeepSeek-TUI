@@ -817,9 +817,7 @@ impl StateStore {
         writeln!(file, "{encoded}").context("failed to append session index entry")?;
 
         // Compact every 64 writes to keep the JSONL from growing without bound.
-        let count_path = self
-            .session_index_path
-            .with_extension("jsonl.count");
+        let count_path = self.session_index_path.with_extension("jsonl.count");
         let compact_threshold: u64 = 64;
         let current = match std::fs::read_to_string(&count_path) {
             Ok(s) => s.trim().parse::<u64>().unwrap_or(0),
@@ -828,15 +826,10 @@ impl StateStore {
         let next = current.saturating_add(1);
         if next >= compact_threshold {
             let map = self.session_index_map()?;
-            let tmp_path = self
-                .session_index_path
-                .with_extension("jsonl.compacting");
+            let tmp_path = self.session_index_path.with_extension("jsonl.compacting");
             {
                 let mut tmp = std::fs::File::create(&tmp_path).with_context(|| {
-                    format!(
-                        "failed to create compaction temp {}",
-                        tmp_path.display()
-                    )
+                    format!("failed to create compaction temp {}", tmp_path.display())
                 })?;
                 for entry in map.values() {
                     let line = serde_json::to_string(entry)
@@ -854,11 +847,17 @@ impl StateStore {
                 )
             })?;
             std::fs::write(&count_path, b"0").with_context(|| {
-                format!("failed to reset compaction counter {}", count_path.display())
+                format!(
+                    "failed to reset compaction counter {}",
+                    count_path.display()
+                )
             })?;
         } else {
             std::fs::write(&count_path, next.to_string().as_bytes()).with_context(|| {
-                format!("failed to write compaction counter {}", count_path.display())
+                format!(
+                    "failed to write compaction counter {}",
+                    count_path.display()
+                )
             })?;
         }
 
