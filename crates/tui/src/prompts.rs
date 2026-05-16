@@ -896,6 +896,32 @@ mod tests {
     }
 
     #[test]
+    fn swarm_orchestrator_brief_always_dispatches_at_least_one_worker() {
+        // Regression guard for the second failure mode: the orchestrator
+        // reading the brief, deciding the task was "too small for swarm",
+        // and answering without spawning any worker — which makes
+        // `/swarm on` look broken to the user. The brief must keep
+        // telling the orchestrator that swarm being on is itself the
+        // request to fan out, and that the model does not own the
+        // decision to skip dispatch or to suggest turning swarm off.
+        for needle in [
+            // Positive directive.
+            "Dispatch-at-least-one",
+            "agent_open",
+            // Negative directive: do not editorialize about turning
+            // swarm off. We match a stable substring so markdown
+            // emphasis around "not" can drift without breaking the test.
+            "suggest",
+            "/swarm off",
+        ] {
+            assert!(
+                SWARM_ORCHESTRATOR_BRIEF.contains(needle),
+                "swarm orchestrator brief missing required term: {needle}"
+            );
+        }
+    }
+
+    #[test]
     fn swarm_orchestrator_wrap_includes_request_and_brief() {
         let wrapped = swarm_orchestrator_wrap("fix the failing test", None);
         assert!(wrapped.contains("<swarm_orchestrator>"));
