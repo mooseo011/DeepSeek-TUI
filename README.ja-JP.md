@@ -1,62 +1,74 @@
-# 🐳 DeepSeek TUI
+# 🐳 DeepSeek TUI（mooseo011 フォーク）
 
-> **このターミナルネイティブのコーディングエージェントは、DeepSeek V4 の 100 万トークンのコンテキストウィンドウとプレフィックスキャッシュ機能を中心に構築されています。単一のバイナリとして配布され、Node.js や Python のランタイムは不要です。MCP クライアント、サンドボックス、永続的なタスクキューも標準で同梱されています。**
+> **DeepSeek V4 向けターミナルネイティブなコーディングエージェント。
+> 新規追加の `/swarm` オーケストレーターがタスクを並列のワーカー
+> サブエージェントに分配します。100 万トークンのコンテキストと
+> プレフィックスキャッシュ最適化を踏襲し、MCP クライアント、
+> サンドボックス、永続タスクキューを同梱した自己完結型 Rust バイナリ。**
 
 [English README](README.md)
 [简体中文 README](README.zh-CN.md)
 
-## インストール
+> [!IMPORTANT]
+> **これはフォークです。** リポジトリは
+> [github.com/mooseo011/DeepSeek-TUI](https://github.com/mooseo011/DeepSeek-TUI)
+> にあり、**npm / crates.io / Homebrew / Scoop / GHCR には公開されていません**。
+> サポートされる唯一の導入手段は `git clone` + `cargo install --path`
+> です。これらのレジストリから `deepseek-tui` を入れると上流の
+> [`Hmbown/DeepSeek-TUI`](https://github.com/Hmbown/DeepSeek-TUI) バイナリ
+> が落ちてくるだけで、**本フォークの `/swarm` は含まれません**。
 
-`deepseek` は自己完結型の Rust バイナリとして提供されており、**実行に Node.js や Python のランタイムは必要ありません。** すでにマシンにインストールされているものを選んでください。いずれの方法でも同じバイナリが `PATH` に配置されます。
+## インストール（このフォークはソースビルド必須）
 
-```bash
-# 1. npm — すでに Node を使っているなら最も簡単。npm パッケージは
-#    GitHub Releases から対応するビルド済みバイナリをダウンロードする
-#    薄いインストーラーであり、deepseek 本体に Node ランタイム依存を加えるものではありません。
-npm install -g deepseek-tui
-
-# 2. Cargo — Node 不要。
-cargo install deepseek-tui-cli --locked   # `deepseek` (エントリーポイント)
-cargo install deepseek-tui     --locked   # `deepseek-tui` (TUI バイナリ)
-
-# 3. Homebrew — macOS パッケージマネージャ。
-brew tap Hmbown/deepseek-tui
-brew install deepseek-tui
-
-# 4. 直接ダウンロード — Node もツールチェーンも不要。
-#    https://github.com/Hmbown/DeepSeek-TUI/releases
-#    Linux x64/ARM64、macOS x64/ARM64、Windows x64 向けのビルド済みバイナリがあります。
-
-# 5. Docker — ビルド済みリリースイメージ。
-docker volume create deepseek-tui-home
-docker run --rm -it \
-  -e DEEPSEEK_API_KEY="$DEEPSEEK_API_KEY" \
-  -v deepseek-tui-home:/home/deepseek/.deepseek \
-  -v "$PWD:/workspace" \
-  -w /workspace \
-  ghcr.io/hmbown/deepseek-tui:latest
-```
-
-> 中国本土では、`--registry=https://registry.npmmirror.com` を指定して npm 経由のダウンロードを高速化するか、下記の[Cargo ミラー](#中国--ミラーフレンドリーなインストール)を利用してください。
-
-既にインストール済みの場合は、インストール方法に合わせて更新してください:
+`deepseek` は 2 つの Rust バイナリ — ディスパッチャ（`deepseek`）と
+コンパニオン TUI（`deepseek-tui`）— で構成されています。ディスパッチャは
+ランタイムに `PATH` 上の `deepseek-tui` を呼び出すので、**両方**を
+フォークのソースから入れてください。片方だけだと上流の古いランタイムを
+踏み続けることになります。
 
 ```bash
-deepseek update
-npm install -g deepseek-tui@latest
-brew update && brew upgrade deepseek-tui
-cargo install deepseek-tui-cli --locked --force
-cargo install deepseek-tui     --locked --force
+# Linux ビルド依存（Debian/Ubuntu/RHEL）:
+#   sudo apt-get install -y build-essential pkg-config libdbus-1-dev
+#   sudo dnf install -y gcc make pkgconf-pkg-config dbus-devel
+
+# 1. このフォークを clone（上流 Hmbown/DeepSeek-TUI ではありません）。
+git clone https://github.com/mooseo011/DeepSeek-TUI.git
+cd DeepSeek-TUI
+
+# 2. 両バイナリをソースからビルド＆インストール。Rust 1.88+ が必要。
+cargo install --path crates/cli --locked   # `deepseek` を提供
+cargo install --path crates/tui --locked   # `deepseek-tui` を提供
+
+# 3. 確認。
+deepseek --version
 ```
 
-[![CI](https://github.com/Hmbown/DeepSeek-TUI/actions/workflows/ci.yml/badge.svg)](https://github.com/Hmbown/DeepSeek-TUI/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/deepseek-tui)](https://www.npmjs.com/package/deepseek-tui)
-[![crates.io](https://img.shields.io/crates/v/deepseek-tui-cli?label=crates.io)](https://crates.io/crates/deepseek-tui-cli)
-[![DeepWiki](https://img.shields.io/badge/DeepWiki-Ask_AI-_.svg?style=flat&color=0052D9&labelColor=000000&logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACwAAAAyCAYAAAAnWDnqAAAAAXNSR0IArs4c6QAAA05JREFUaEPtmUtyEzEQhtWTQyQLHNak2AB7ZnyXZMEjXMGeK/AIi+QuHrMnbChYY7MIh8g01fJoopFb0uhhEqqcbWTp06/uv1saEDv4O3n3dV60RfP947Mm9/SQc0ICFQgzfc4CYZoTPAswgSJCCUJUnAAoRHOAUOcATwbmVLWdGoH//PB8mnKqScAhsD0kYP3j/Yt5LPQe2KvcXmGvRHcDnpxfL2zOYJ1mFwrryWTz0advv1Ut4CJgf5uhDuDj5eUcAUoahrdY/56ebRWeraTjMt/00Sh3UDtjgHtQNHwcRGOC98BJEAEymycmYcWwOprTgcB6VZ5JK5TAJ+fXGLBm3FDAmn6oPPjR4rKCAoJCal2eAiQp2x0vxTPB3ALO2CRkwmDy5WohzBDwSEFKRwPbknEggCPB/imwrycgxX2NzoMCHhPkDwqYMr9tRcP5qNrMZHkVnOjRMWwLCcr8ohBVb1OMjxLwGCvjTikrsBOiA6fNyCrm8V1rP93iVPpwaE+gO0SsWmPiXB+jikdf6SizrT5qKasx5j8ABbHpFTx+vFXp9EnYQmLx02h1QTTrl6eDqxLnGjporxl3NL3agEvXdT0WmEost648sQOYAeJS9Q7bfUVoMGnjo4AZdUMQku50McDcMWcBPvr0SzbTAFDfvJqwLzgxwATnCgnp4wDl6Aa+Ax283gghmj+vj7feE2KBBRMW3FzOpLOADl0Isb5587h/U4gGvkt5v60Z1VLG8BhYjbzRwyQZemwAd6cCR5/XFWLYZRIMpX39AR0tjaGGiGzLVyhse5C9RKC6ai42ppWPKiBagOvaYk8lO7DajerabOZP46Lby5wKjw1HCRx7p9sVMOWGzb/vA1hwiWc6jm3MvQDTogQkiqIhJV0nBQBTU+3okKCFDy9WwferkHjtxib7t3xIUQtHxnIwtx4mpg26/HfwVNVDb4oI9RHmx5WGelRVlrtiw43zboCLaxv46AZeB3IlTkwouebTr1y2NjSpHz68WNFjHvupy3q8TFn3Hos2IAk4Ju5dCo8B3wP7VPr/FGaKiG+T+v+TQqIrOqMTL1VdWV1DdmcbO8KXBz6esmYWYKPwDL5b5FA1a0hwapHiom0r/cKaoqr+27/XcrS5UwSMbQAAAABJRU5ErkJggg==)](https://deepwiki.com/Hmbown/DeepSeek-TUI)
+フォークから今後の更新を取り込むには:
 
-<a href="https://www.buymeacoffee.com/hmbown" target="_blank"><img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-5F7FFF?style=for-the-badge&logo=buymeacoffee&logoColor=white" alt="Buy me a coffee" /></a>
+```bash
+cd /path/to/DeepSeek-TUI
+git pull
+cargo install --path crates/cli --locked --force
+cargo install --path crates/tui --locked --force
+```
+
+> npm / crates.io / Homebrew / Scoop / Docker から上流リリース版を
+> インストールしていた場合、フォークの `cargo install --path ... --force`
+> は `PATH` 上の `deepseek` と `deepseek-tui` をソースビルド版で
+> 上書きします。`which deepseek` で実体を確認してください。
 
 ![DeepSeek TUI スクリーンショット](assets/screenshot.png)
+
+<details>
+<summary>上流 Hmbown のリリースバイナリが欲しい場合</summary>
+
+本フォークの `/swarm` が不要であれば、npm / crates.io / Homebrew /
+Docker / GitHub Releases から上流バイナリを入れることもできます。手順は
+[上流 Hmbown/DeepSeek-TUI README](https://github.com/Hmbown/DeepSeek-TUI#install)
+と [docs/INSTALL.md](docs/INSTALL.md) を参照してください。上流バイナリには
+本フォークの変更は**含まれません**。
+
+</details>
 
 ---
 
@@ -68,6 +80,16 @@ DeepSeek TUI は、ターミナル内で完結するコーディングエージ�
 
 ### 主な機能
 
+- **`/swarm` オーケストレーターモード**（*本フォークで追加*）— セッション
+  フラグを切り替えると、各ユーザーターンが API 送信前に「バイト単位で
+  安定したオーケストレーター指示書」で包まれます。アシスタントは
+  タスクを分解し、1 ターン内で `agent_open` ワーカーを並列に派遣
+  （安定セッション名 + `fork_context` / `resident_file` のキャッシュ
+  指向デフォルト）、`agent_eval` で結果を集約、副作用を検証して
+  1 つの回答にまとめます。包み文字列は毎ターン変わらないため、
+  DeepSeek の自動プレフィックスキャッシュはシステムプロンプト・
+  ツール一覧・既存履歴に対して継続的にヒットします。詳細は
+  [Swarm モード](#swarm-モード本フォーク限定)。
 - **Auto モード** — `--model auto` / `/model auto` がターンごとにモデルと推論強度を選択
 - **ネイティブ RLM** (`rlm_open`/`rlm_eval`) — 永続 REPL セッションでバッチ解析を行い、`peek`、`search`、`chunk`、`sub_query_batch` などの補助関数で低コストな `deepseek-v4-flash` 子タスクを実行
 - **Thinking-mode ストリーミング** — モデルがタスクに取り組む様子をリアルタイムで観察し、思考連鎖の展開を追える
@@ -99,12 +121,21 @@ DeepSeek TUI は、ターミナル内で完結するコーディングエージ�
 ## クイックスタート
 
 ```bash
-npm install -g deepseek-tui
+git clone https://github.com/mooseo011/DeepSeek-TUI.git
+cd DeepSeek-TUI
+cargo install --path crates/cli --locked
+cargo install --path crates/tui --locked
 deepseek --version
 deepseek --model auto
 ```
 
-ビルド済みバイナリは **Linux x64**、**Linux ARM64**（v0.8.8 以降）、**macOS x64**、**macOS ARM64**、**Windows x64** 向けに公開されています。その他のターゲット（musl、riscv64、FreeBSD など）は [ソースからのインストール](#install-from-source) または [docs/INSTALL.md](docs/INSTALL.md) を参照してください。
+Rust 1.88+ が必要です（`rustup default stable`）。Linux ビルド依存:
+`build-essential`、`pkg-config`、`libdbus-1-dev`（`apt`）または
+`gcc make pkgconf-pkg-config dbus-devel`（`dnf`）。上流
+`Hmbown/DeepSeek-TUI` はビルド済みバイナリを Linux x64/ARM64、
+macOS x64/ARM64、Windows x64 で公開していますが、**本フォークの
+`/swarm` は含まれていません**。詳細は README 冒頭のインストール案内を
+参照してください。
 
 初回起動時に [DeepSeek API キー](https://platform.deepseek.com/api_keys) の入力を求められます。キーは `~/.deepseek/config.toml` に保存されるため、OS のクレデンシャルプロンプトなしに任意のディレクトリから利用できます。
 
@@ -121,13 +152,11 @@ deepseek doctor                         # セットアップを検証
 
 > 保存済みキーをローテーション／削除するには: `deepseek auth clear --provider deepseek`。
 
-### Linux ARM64（Raspberry Pi、Asahi、Graviton、HarmonyOS PC）
+### 中国 / ミラーフレンドリーなソースビルド
 
-`npm i -g deepseek-tui` は v0.8.8 以降、glibc ベースの ARM64 Linux で動作します。[Releases ページ](https://github.com/Hmbown/DeepSeek-TUI/releases) からビルド済みバイナリをダウンロードし、`PATH` 上に並べて配置することもできます。
-
-### 中国 / ミラーフレンドリーなインストール
-
-中国本土から GitHub または npm のダウンロードが遅い場合は、Cargo レジストリのミラーを利用してください:
+中国本土から `crates.io` への取得が遅い場合は、まず
+`~/.cargo/config.toml` にミラーを設定してから、clone した本フォークに対して
+`cargo install --path` を実行してください:
 
 ```toml
 # ~/.cargo/config.toml
@@ -138,45 +167,11 @@ replace-with = "tuna"
 registry = "sparse+https://mirrors.tuna.tsinghua.edu.cn/crates.io-index/"
 ```
 
-その後、両方のバイナリをインストールしてください（ディスパッチャーは実行時に TUI へ委譲します）:
-
 ```bash
-cargo install deepseek-tui-cli --locked   # `deepseek` を提供
-cargo install deepseek-tui     --locked   # `deepseek-tui` を提供
+cargo install --path crates/cli --locked
+cargo install --path crates/tui --locked
 deepseek --version
 ```
-
-ビルド済みバイナリは [GitHub Releases](https://github.com/Hmbown/DeepSeek-TUI/releases) からもダウンロードできます。ミラーされたリリースアセットには `DEEPSEEK_TUI_RELEASE_BASE_URL` を使ってください。
-
-### Windows（Scoop）
-
-[Scoop](https://scoop.sh) は Windows のパッケージマネージャです。インストール後、次を実行してください:
-
-```bash
-scoop install deepseek-tui
-```
-
-
-<details id="install-from-source">
-<summary>ソースからのインストール</summary>
-
-任意の Tier-1 Rust ターゲット — musl、riscv64、FreeBSD、古い ARM64 ディストロを含む — で動作します。
-
-```bash
-# Linux のビルド依存関係 (Debian/Ubuntu/RHEL):
-#   sudo apt-get install -y build-essential pkg-config libdbus-1-dev
-#   sudo dnf install -y gcc make pkgconf-pkg-config dbus-devel
-
-git clone https://github.com/Hmbown/DeepSeek-TUI.git
-cd DeepSeek-TUI
-
-cargo install --path crates/cli --locked   # Rust 1.88+ が必要。`deepseek` を提供
-cargo install --path crates/tui --locked   # `deepseek-tui` を提供
-```
-
-両方のバイナリが必要です。クロスコンパイルとプラットフォーム固有の注意事項: [docs/INSTALL.md](docs/INSTALL.md)。
-
-</details>
 
 ### その他の API プロバイダー
 
@@ -252,8 +247,14 @@ deepseek run pr <N>                              # PR を取得しレビュー�
 deepseek mcp list                                # 設定された MCP サーバー一覧
 deepseek mcp validate                            # MCP の設定／接続性を検証
 deepseek mcp-server                              # ディスパッチャー MCP stdio サーバーを実行
-deepseek update                                  # バイナリ更新の確認と適用
 ```
+
+> `deepseek update` は本フォークでは**使うべきではありません**。
+> 上流 `Hmbown/DeepSeek-TUI` のリリースバイナリを取得し、ソースビルド
+> 版（`/swarm` を含む）を上書きしてしまいます。本フォークを更新する
+> 場合は、clone したディレクトリで `git pull` してから
+> `cargo install --path crates/cli --locked --force` と
+> `cargo install --path crates/tui --locked --force` を再実行してください。
 
 ### キーボードショートカット
 
@@ -282,6 +283,72 @@ deepseek update                                  # バイナリ更新の確認�
 | **Plan** 🔍 | 読み取り専用の調査 — 変更を加える前に、モデルが探索して計画を提案（`update_plan` + `checklist_write`） |
 | **Agent** 🤖 | デフォルトのインタラクティブモード — 承認ゲート付きのマルチステップなツール利用。モデルは `checklist_write` で作業を概説 |
 | **YOLO** ⚡ | 信頼できるワークスペースですべてのツールを自動承認。可視性のための計画とチェックリストは引き続き維持 |
+
+---
+
+## Swarm モード（本フォーク限定）
+
+`/swarm` は既存 3 モードの上に**オーケストレーター主導のマルチエージェント**
+層を追加します。スワーム有効中は、各ユーザーターンが API 送信時に
+バイト単位で安定したオーケストレーター指示書で包まれ、アシスタントは
+タスクを分解し、1 ターンで `agent_open` ワーカーを並列派遣し、
+`agent_eval` で集約・副作用を検証して 1 つの回答に統合します。画面上の
+「ユーザー」セルには入力原文がそのまま表示され、ラッパーはワイヤー上
+にのみ存在します。
+
+なぜキャッシュが効くか（これが設計の主眼です）:
+
+- **ラッパーがターン間でバイト一致** — DeepSeek の自動プレフィックス
+  キャッシュは system prompt・ツール一覧・既存履歴にヒットし続け
+  ます（ユニットテストで保証済み）。
+- **安定したワーカーセッション名** — 指示書は `worker_search`、
+  `worker_patch`、`worker_verify` のような固定名の使い回しを要求し、
+  各ワーカーの定型プレフィックスを後続ターンでもキャッシュにとどめます。
+- **デフォルトで `fork_context: false`** — 狭いコンテキストで新規に
+  立ち上げるワーカーは prefill が小さく安価。親履歴が本当に必要な
+  時だけ `fork_context: true` を許可します。
+- **`resident_file` リース** — 単一ファイルを繰り返し触る作業では
+  そのファイルをワーカーの system prefix に常駐させ、`send_input` /
+  `agent_eval` をまたいでキャッシュ温度を維持（既存
+  `RESIDENT_LEASES` ルールに従い同時 1 ファイル）。
+- **1 ターンでの並列 `agent_open`** — ディスパッチャーはもともと
+  並列実行可能。指示書は連鎖呼び出しではなくバッチ派遣を強制します。
+- **再引用ではなく `handle_read`** — ワーカーの大きな出力は
+  `handle_read` で範囲指定して取り、親コンテキストに丸ごとコピーは
+  しません。
+- **履歴は追記のみ** — 既存メッセージの言い換え・並び替えは厳禁。
+  並びを崩すと以後のキャッシュが全滅します。
+
+サブコマンド:
+
+```text
+/swarm                       # 有効/無効を切り替え
+/swarm on                    # 有効化（即時派遣はしない）
+/swarm off                   # 無効化
+/swarm status                # 現在の状態とセッションブリーフを表示
+/swarm brief <text>          # ラッパーに埋め込むセッションブリーフを固定
+/swarm brief clear           # ブリーフをクリア
+/swarm <task>                # 必要に応じて有効化して <task> を即時派遣
+```
+
+セッションブリーフは、フォーカスする領域・除外したい場所・リポジトリ
+固有の規約など、毎ターン再記述したくない定常情報を置く場所です。
+別名: `/fengqun`、`/蜂群`。
+
+スワーム有効時のターンの流れ:
+
+1. 普段どおりプロンプトを入力。
+2. オーケストレーター（メインアシスタント）がタスクを分解し、
+   1 ターン内で並列に `agent_open` ワーカーを派遣。
+3. `agent_eval` で集約、副作用を再検証（ファイル編集・シェルコマンド・
+   テスト結果はワーカーの主張のまま信用せず、事実として扱う前に
+   再確認）、統合された答えを返す。
+4. ユーザーが次のプロンプトを送る。ワーカーは設計上ターンをまたいで
+   開いたまま残り、作業完了・長時間アイドル・`resident_file` リース
+   解放が必要な時だけ `agent_close` します。
+
+本リビジョンでスワームのフラグは保存セッションに永続化されません。
+`/load` 後は手動で `/swarm on` してください。
 
 ---
 
@@ -410,7 +477,12 @@ description: DeepSeek にカスタムワークフローを実行させたいと�
 
 ## コントリビューション
 
-[CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。プルリクエストを歓迎します。良い初コントリビューションは [Open Issues](https://github.com/Hmbown/DeepSeek-TUI/issues) を確認してください。
+本フォークは
+[github.com/mooseo011/DeepSeek-TUI](https://github.com/mooseo011/DeepSeek-TUI)
+にあります。フォーク固有の issue / PR はこちらへ。上流リポジトリの
+[CONTRIBUTING.md](CONTRIBUTING.md) と
+[Open Issues](https://github.com/Hmbown/DeepSeek-TUI/issues) の方針は
+そのまま適用されます。
 
 > [!Note]
 > *DeepSeek Inc. とは関係ありません。*

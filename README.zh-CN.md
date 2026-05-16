@@ -1,67 +1,71 @@
-# DeepSeek TUI
+# DeepSeek TUI（mooseo011 分叉）
 
-> **面向 [DeepSeek V4](https://platform.deepseek.com) 的终端原生编程智能体：100 万 token 上下文、思考模式流式推理、前缀缓存感知。自包含 Rust 二进制发布——开箱即带 MCP 客户端、沙箱和持久化任务队列。**
+> **面向 [DeepSeek V4](https://platform.deepseek.com) 的终端原生编程智能体，
+> 新增 `/swarm` 编排器：把任务拆分给并行运行的工作子智能体。100 万 token
+> 上下文、思考模式流式推理、前缀缓存感知。自包含 Rust 二进制——开箱即带
+> MCP 客户端、沙箱和持久化任务队列。**
 
 [English README](README.md)
 [日本語 README](README.ja-JP.md)
 
-## 安装
+> [!IMPORTANT]
+> **这是一个分叉版本。** 仓库地址：
+> [github.com/mooseo011/DeepSeek-TUI](https://github.com/mooseo011/DeepSeek-TUI)。
+> **该分叉未发布到 npm、crates.io、Homebrew、Scoop 或 GHCR**，唯一受支持的
+> 安装方式是 `git clone` + `cargo install --path`。从那些渠道安装的
+> `deepseek-tui` 会拉取上游
+> [`Hmbown/DeepSeek-TUI`](https://github.com/Hmbown/DeepSeek-TUI) 的二进制，
+> **不包含本分叉新增的 `/swarm` 编排器**。
 
-`deepseek` 是自包含 Rust 二进制——**运行时不依赖 Node.js 或 Python**。
-下面几种方式装出来的是同一套二进制，按你已有的工具链选一个即可：
+## 安装（必须从源码构建本分叉）
 
-```bash
-# 1. npm —— 已装 Node 的最方便方式。npm 包只是一个下载器，
-#    会从 GitHub Releases 拉取对应平台的预编译二进制，
-#    并不会让 deepseek 本身依赖 Node 运行时。
-npm install -g deepseek-tui
-
-# 2. Cargo —— 无需 Node。
-cargo install deepseek-tui-cli --locked   # `deepseek` 入口
-cargo install deepseek-tui     --locked   # `deepseek-tui` TUI 二进制
-
-# 3. Homebrew —— macOS 包管理器。
-brew tap Hmbown/deepseek-tui
-brew install deepseek-tui
-
-# 4. 直接下载 —— 无需任何工具链。
-#    https://github.com/Hmbown/DeepSeek-TUI/releases
-#    覆盖 Linux x64/ARM64、macOS x64/ARM64、Windows x64
-
-# 5. Docker —— 预构建发布镜像。
-docker volume create deepseek-tui-home
-docker run --rm -it \
-  -e DEEPSEEK_API_KEY="$DEEPSEEK_API_KEY" \
-  -v deepseek-tui-home:/home/deepseek/.deepseek \
-  -v "$PWD:/workspace" \
-  -w /workspace \
-  ghcr.io/hmbown/deepseek-tui:latest
-```
-
-> 中国大陆访问较慢时，npm 可加 `--registry=https://registry.npmmirror.com`，
-> 或使用下方的 [Cargo 镜像](#中国大陆--镜像友好安装)。
->
-> 下载安全：官方二进制只发布在
-> `https://github.com/Hmbown/DeepSeek-TUI/releases`。手动下载时请校验
-> SHA-256 manifest，并避免相似仓库名或搜索结果里的镜像站。详见
-> [下载安全与校验](docs/INSTALL.md#2-download-safety-and-checksums)。
-
-已经安装过？按你的安装方式更新：
+`deepseek` 是两个 Rust 二进制：调度器（`deepseek`）和配套的 TUI 运行时
+（`deepseek-tui`）。**必须**从本分叉源码同时安装两个——调度器在运行时会
+查找 `PATH` 上的 `deepseek-tui`，只装一个会让你停留在上游旧版（或没有
+运行时）。
 
 ```bash
-deepseek update                         # release 二进制更新器
-npm install -g deepseek-tui@latest      # npm 包装器
-brew update && brew upgrade deepseek-tui
-cargo install deepseek-tui-cli --locked --force
-cargo install deepseek-tui     --locked --force
+# Linux 构建依赖（Debian/Ubuntu/RHEL）：
+#   sudo apt-get install -y build-essential pkg-config libdbus-1-dev
+#   sudo dnf install -y gcc make pkgconf-pkg-config dbus-devel
+
+# 1. 克隆本分叉（不是上游 Hmbown/DeepSeek-TUI 仓库）。
+git clone https://github.com/mooseo011/DeepSeek-TUI.git
+cd DeepSeek-TUI
+
+# 2. 从源码构建并安装两个二进制。需要 Rust 1.88+。
+cargo install --path crates/cli --locked   # 提供 `deepseek`
+cargo install --path crates/tui --locked   # 提供 `deepseek-tui`
+
+# 3. 验证。
+deepseek --version
 ```
 
-[![CI](https://github.com/Hmbown/DeepSeek-TUI/actions/workflows/ci.yml/badge.svg)](https://github.com/Hmbown/DeepSeek-TUI/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/deepseek-tui)](https://www.npmjs.com/package/deepseek-tui)
-[![crates.io](https://img.shields.io/crates/v/deepseek-tui-cli?label=crates.io)](https://crates.io/crates/deepseek-tui-cli)
-[DeepWiki project index](https://deepwiki.com/Hmbown/DeepSeek-TUI)
+后续从本分叉拉取更新：
+
+```bash
+cd /path/to/DeepSeek-TUI
+git pull
+cargo install --path crates/cli --locked --force
+cargo install --path crates/tui --locked --force
+```
+
+> 如果你之前通过 npm / crates.io / Homebrew / Scoop / Docker 安装过上游
+> 发布版，本分叉的 `cargo install --path ... --force` 会覆盖你 `PATH`
+> 上的 `deepseek` 和 `deepseek-tui` 二进制为源码构建版本。可以用
+> `which deepseek` 确认当前激活的是哪一个。
 
 ![DeepSeek TUI 截图](assets/screenshot.png)
+
+<details>
+<summary>想要上游 Hmbown 的发布二进制？</summary>
+
+如果不需要本分叉的 `/swarm` 功能，可以从 npm / crates.io / Homebrew /
+Docker / GitHub Releases 安装上游二进制。安装路径见
+[上游 Hmbown/DeepSeek-TUI README](https://github.com/Hmbown/DeepSeek-TUI#install)
+和 [docs/INSTALL.md](docs/INSTALL.md)。上游二进制**不包含**本分叉的改动。
+
+</details>
 
 ---
 
@@ -73,6 +77,7 @@ DeepSeek TUI 是一个完全运行在终端里的编程智能体。它让 DeepSe
 
 ### 主要功能
 
+- **`/swarm` 编排器模式**（*本分叉新增*）—— 切换一个会话级开关：开启后每个用户回合都会被一个稳定的“编排器简报”包裹，告诉模型拆解任务、在同一回合内并行派发 `agent_open` 工作子智能体（带稳定会话名、`fork_context` / `resident_file` 缓存友好默认值），再用 `agent_eval` 汇总、校验副作用、综合成一条答案。包裹文本逐回合字节稳定，DeepSeek 的自动前缀缓存在系统提示、工具列表和历史消息上持续命中。详见 [Swarm 模式](#swarm-模式仅本分叉)。
 - **Auto 模式** —— `--model auto` / `/model auto` 每轮自动选择模型和推理强度
 - **原生 RLM**（`rlm_open`/`rlm_eval`）—— 持久化 REPL 会话用于批量分析；使用带界面的辅助函数（`peek`、`search`、`chunk`、`sub_query_batch`）运行低成本 `deepseek-v4-flash` 子任务
 - **思考模式流式输出** —— 实时观察模型在解决问题时的思维链展开
@@ -118,12 +123,20 @@ DeepSeek TUI 可以同时调度多个子智能体并行运行——类似于并�
 ## 快速开始
 
 ```bash
-npm install -g deepseek-tui
+git clone https://github.com/mooseo011/DeepSeek-TUI.git
+cd DeepSeek-TUI
+cargo install --path crates/cli --locked
+cargo install --path crates/tui --locked
 deepseek --version
 deepseek --model auto
 ```
 
-预构建二进制覆盖 **Linux x64**、**Linux ARM64**（v0.8.8 起）、**macOS x64**、**macOS ARM64** 和 **Windows x64**。其他目标平台（musl、riscv64、FreeBSD 等）请见下方的[从源码安装](#从源码安装)或 [docs/INSTALL.md](docs/INSTALL.md)。
+需要 Rust 1.88+（`rustup default stable`）。Linux 构建依赖：
+`build-essential`、`pkg-config`、`libdbus-1-dev`（`apt`）或
+`gcc make pkgconf-pkg-config dbus-devel`（`dnf`）。上游
+`Hmbown/DeepSeek-TUI` 发布的预编译二进制覆盖 Linux x64/ARM64、macOS
+x64/ARM64 和 Windows x64，但**不包含**本分叉的 `/swarm` 功能，详见
+README 顶部的安装说明。
 
 首次启动时会提示输入 [DeepSeek API key](https://platform.deepseek.com/api_keys)。密钥保存到 `~/.deepseek/config.toml`，在任意目录、IDE 终端和脚本中都能使用，不会触发系统密钥环弹窗。
 
@@ -166,13 +179,10 @@ Auto 模式同时控制两个设置：
 
 需要可重复基准测试、严格控制成本上限或特定提供商/模型映射时，请使用固定模型或固定推理强度。
 
-### Linux ARM64（HarmonyOS 轻薄本、openEuler、Kylin、树莓派、Graviton 等）
+### 中国大陆 / 镜像友好源码构建
 
-从 v0.8.8 起，`npm i -g deepseek-tui` 直接支持 glibc 系的 ARM64 Linux。你也可以从 [Releases 页面](https://github.com/Hmbown/DeepSeek-TUI/releases) 下载预编译二进制，放到 `PATH` 目录中。
-
-### 中国大陆 / 镜像友好安装
-
-如果在中国大陆访问 GitHub 或 npm 下载较慢，可以通过 Cargo 注册表镜像安装：
+如果在中国大陆访问 `crates.io` 较慢，可以先在 `~/.cargo/config.toml`
+里配置镜像，再对克隆下来的分叉运行 `cargo install --path`：
 
 ```toml
 # ~/.cargo/config.toml
@@ -183,51 +193,11 @@ replace-with = "tuna"
 registry = "sparse+https://mirrors.tuna.tsinghua.edu.cn/crates.io-index/"
 ```
 
-然后安装两个二进制（调度器在运行时会调用 TUI）：
-
 ```bash
-cargo install deepseek-tui-cli --locked   # 提供推荐入口 `deepseek`
-cargo install deepseek-tui     --locked   # 提供交互式 TUI 伴随二进制
+cargo install --path crates/cli --locked
+cargo install --path crates/tui --locked
 deepseek --version
 ```
-
-也可以直接从 [GitHub Releases](https://github.com/Hmbown/DeepSeek-TUI/releases) 下载预编译二进制。`DEEPSEEK_TUI_RELEASE_BASE_URL` 可用于镜像后的 release 资产。
-
-### Windows (Scoop)
-
-[Scoop](https://scoop.sh) 是一个 Windows 软件包管理器。DeepSeek TUI 已进入
-Scoop main bucket，但该 manifest 独立更新，可能滞后于 GitHub/npm/Cargo
-release。先运行 `scoop update`，安装后用 `deepseek --version` 核对版本：
-
-```bash
-scoop update
-scoop install deepseek-tui
-deepseek --version
-```
-
-如果需要最新版本，请优先使用 npm 或直接下载 GitHub Release 资产。
-
-
-<details id="install-from-source">
-<summary>从源码安装</summary>
-
-适用于任何 Tier-1 Rust 目标，包括 musl、riscv64、FreeBSD 以及尚无预编译包的 ARM64 发行版。
-
-```bash
-# Linux 构建依赖（Debian/Ubuntu/RHEL）：
-#   sudo apt-get install -y build-essential pkg-config libdbus-1-dev
-#   sudo dnf install -y gcc make pkgconf-pkg-config dbus-devel
-
-git clone https://github.com/Hmbown/DeepSeek-TUI.git
-cd DeepSeek-TUI
-
-cargo install --path crates/cli --locked   # 需要 Rust 1.88+；提供 `deepseek`
-cargo install --path crates/tui --locked   # 提供 `deepseek-tui`
-```
-
-两个二进制都需要安装。交叉编译和平台特定说明见 [docs/INSTALL.md](docs/INSTALL.md)。
-
-</details>
 
 ### 其他模型提供方
 
@@ -276,8 +246,10 @@ API 返回的实时模型。`/model` 选择器会优先使用当前提供方的�
 
 ## 版本说明
 
-每个版本的具体变更见 [CHANGELOG.md](CHANGELOG.md)。README 只保留当前
-安装方式、核心工作流、模型提供方配置、运行时接口和扩展入口。
+每个版本的具体变更见 [CHANGELOG.md](CHANGELOG.md)。文件顶部的
+`[Unreleased]` 部分记录本分叉相对上游 `Hmbown/DeepSeek-TUI` 最新发布版
+之上新增的改动（如 `/swarm`）。本分叉不单独打 tag；用 `git pull`
+拉取 `main` 分支即可更新。
 
 ---
 
@@ -307,23 +279,18 @@ deepseek run pr <N>                            # 获取 PR 并预填审查提示
 deepseek mcp list                              # 列出已配置 MCP 服务器
 deepseek mcp validate                          # 校验 MCP 配置和连接
 deepseek mcp-server                            # 启动 dispatcher MCP stdio 服务器
-deepseek update                                # 检查并应用二进制更新
 ```
 
-Docker 镜像发布在 GHCR 上：
+> `deepseek update` 在本分叉中**已被禁用建议使用**：它会去拉取上游
+> `Hmbown/DeepSeek-TUI` 的发布二进制，把你源码构建的版本（含 `/swarm`）
+> 直接覆盖掉。要更新本分叉，请在克隆目录里 `git pull`，然后重新执行
+> `cargo install --path crates/cli --locked --force` 和
+> `cargo install --path crates/tui --locked --force`。
 
-```bash
-docker volume create deepseek-tui-home
-
-docker run --rm -it \
-  -e DEEPSEEK_API_KEY="$DEEPSEEK_API_KEY" \
-  -v deepseek-tui-home:/home/deepseek/.deepseek \
-  -v "$PWD:/workspace" \
-  -w /workspace \
-  ghcr.io/hmbown/deepseek-tui:latest
-```
-
-固定 tag、本地构建、volume 权限和非交互管道用法见 [docs/DOCKER.md](docs/DOCKER.md)。
+> GHCR 上发布的 `ghcr.io/hmbown/deepseek-tui:latest` 镜像装的是上游
+> 发布二进制，**不包含**本分叉的 `/swarm`。如果需要容器版本的本分叉，
+> 请在克隆目录里运行 `docker build -t deepseek-tui:swarm .`。上游
+> 镜像说明见 [docs/DOCKER.md](docs/DOCKER.md)。
 
 ### Zed / ACP
 
@@ -370,6 +337,63 @@ DeepSeek 可作为自定义 Agent Client Protocol 服务器运行，供 Zed 等�
 | **Plan** 🔍 | 只读调查；模型先探索并提出计划（`update_plan` + `checklist_write`），然后再做更改 |
 | **Agent** 🤖 | 默认交互模式；多步工具调用带审批门禁 |
 | **YOLO** ⚡ | 在可信工作区自动批准工具；仍会维护计划和清单以保持可见性 |
+
+---
+
+## Swarm 模式（仅本分叉）
+
+`/swarm` 在三种模式之上叠加了一层**编排器主导的多智能体**。开启后，每个
+用户回合都会在发送给 API 时被一个稳定的“编排器简报”包裹，告诉模型：
+拆解任务、在同一回合内并行派发 `agent_open` 工作子智能体、用
+`agent_eval` 汇总、校验副作用、最终合成一条答案。终端里展示的“用户”
+气泡仍是你输入的原文——只有送往 API 的报文里携带这层包裹。
+
+为什么省 token（这正是设计目的）：
+
+- **包裹文本逐回合字节稳定** —— DeepSeek 的自动前缀缓存在系统提示、
+  工具列表和历史消息上持续命中（已有单测保证）。
+- **稳定的 worker 会话名** —— 简报要求复用 `worker_search`、
+  `worker_patch`、`worker_verify` 这类名字，使每个 worker 的固定前缀在
+  后续用户回合里依然命中缓存。
+- **默认 `fork_context: false`** —— 新建的窄上下文 worker prefill 很小、
+  跑得便宜；只有真正需要父级历史时才会让 `fork_context: true`。
+- **`resident_file` 租约** —— 重复操作单文件时让该文件常驻在 worker 的
+  系统前缀中，`send_input` / `agent_eval` 之间保持缓存温度。一个文件
+  同一时间只允许一个租约（沿用现有的 `RESIDENT_LEASES` 机制）。
+- **单回合内并行 `agent_open`** —— 调度器本来就并行执行，简报强制
+  批量派发，而不是串行链式调用。
+- **用 `handle_read` 而非重复粘贴** —— worker 的大段输出通过
+  `handle_read` 按需取片段，绝不把整份 transcript 拷回父上下文。
+- **只追加、不重排** —— 简报反复强调不要重排或改写历史消息，否则后续
+  字节的缓存全部失效。
+
+子命令：
+
+```text
+/swarm                       # 切换 开/关
+/swarm on                    # 启用（不立即派发任务）
+/swarm off                   # 关闭
+/swarm status                # 显示当前状态和已固定的简报
+/swarm brief <text>          # 固定一段会话简报，嵌入到包裹文本中
+/swarm brief clear           # 清除固定的简报
+/swarm <task>                # 启用（如未启用）并立即派发 <task>
+```
+
+固定的会话简报用来放置常驻上下文（关注的模块、要避开的目录、仓库特定
+约定等），不必每次重复输入。命令别名：`/fengqun`、`/蜂群`。
+
+每个用户回合在 swarm 开启时的流程：
+
+1. 像平时一样输入提示。
+2. 编排器（主助手）拆解任务，在同一回合内并行 `agent_open` 工作
+   智能体。
+3. 编排器通过 `agent_eval` 汇总，校验副作用（文件编辑、shell 命令、
+   测试声明等都会在被当作事实之前重新核对），返回一条整合后的答案。
+4. 你继续提问。worker 默认在多回合间保持开启，只有任务真正结束、
+   长时间空闲或需要让出 `resident_file` 租约时才 `agent_close`。
+
+本次改动里 swarm 开关不会持久化到保存的会话；`/load` 后请手动
+`/swarm on`。
 
 ---
 
@@ -555,7 +579,11 @@ description: 当 DeepSeek 需要遵循我的自定义工作流时使用这个技
 
 ## 贡献
 
-欢迎提交 pull request——请先查看 [CONTRIBUTING.md](CONTRIBUTING.md) 并留意[开放 issue](https://github.com/Hmbown/DeepSeek-TUI/issues) 中的好入门任务。
+本分叉位于
+[github.com/mooseo011/DeepSeek-TUI](https://github.com/mooseo011/DeepSeek-TUI)，
+分叉相关的 issue 与 PR 请提到这里。上游
+[Hmbown/DeepSeek-TUI](https://github.com/Hmbown/DeepSeek-TUI/issues) 的
+[CONTRIBUTING.md](CONTRIBUTING.md) 流程同样适用。
 
 *本项目与 DeepSeek Inc. 无隶属关系。*
 

@@ -10,6 +10,63 @@ If you just want the short version, see the
 
 ---
 
+## 0. Installing this fork (`mooseo011/DeepSeek-TUI`)
+
+> The `mooseo011/DeepSeek-TUI` fork is **not published to npm,
+> crates.io, Homebrew, Scoop, GitHub Releases, or GHCR.** The
+> registry-based instructions in the rest of this page install the
+> upstream `Hmbown/DeepSeek-TUI` binaries, which do **not** contain
+> this fork's `/swarm` orchestrator-led multi-agent mode.
+
+To install this fork, you must build both binaries from source:
+
+```bash
+# Linux build deps (Debian/Ubuntu/RHEL):
+#   sudo apt-get install -y build-essential pkg-config libdbus-1-dev
+#   sudo dnf install -y gcc make pkgconf-pkg-config dbus-devel
+
+git clone https://github.com/mooseo011/DeepSeek-TUI.git
+cd DeepSeek-TUI
+
+# Requires Rust 1.88+ (run `rustup default stable` if you don't have it).
+cargo install --path crates/cli --locked   # provides `deepseek`
+cargo install --path crates/tui --locked   # provides `deepseek-tui`
+
+deepseek --version
+```
+
+To update later:
+
+```bash
+cd /path/to/DeepSeek-TUI
+git pull
+cargo install --path crates/cli --locked --force
+cargo install --path crates/tui --locked --force
+```
+
+Notes:
+
+- **Do not run `deepseek update`** on this fork. The built-in updater
+  checks the upstream `Hmbown/DeepSeek-TUI` release feed and would
+  overwrite your source-built binaries (and `/swarm`) with the upstream
+  release.
+- **Cargo registry mirrors** still work — set
+  `[source.crates-io]` in `~/.cargo/config.toml` before running
+  `cargo install --path` (see [README › China / Mirror-friendly
+  source builds](../README.md#china--mirror-friendly-source-builds)).
+- **Containerized builds**: this fork does not publish a Docker image.
+  Run `docker build -t deepseek-tui:swarm .` against the cloned repo
+  if you want one. The published `ghcr.io/hmbown/deepseek-tui:latest`
+  ships upstream binaries only.
+
+The sections below (`§1`–`§9`) document the **upstream
+`Hmbown/DeepSeek-TUI`** install matrix. If you reached this page via a
+GitHub Release link or `npm install -g deepseek-tui`, you're in the
+right place; if you specifically want the fork, stop here and use
+the steps in this section.
+
+---
+
 ## 1. Supported platforms
 
 `deepseek-tui` ships prebuilt binaries for these

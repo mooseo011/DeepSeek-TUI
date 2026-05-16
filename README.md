@@ -1,70 +1,78 @@
-# DeepSeek TUI
-**USE THE SOURCE FROM GITHUB BECAUSE THIS IS A FORK THAT ISNT ON NPM**
-> Terminal coding agent for DeepSeek V4. It runs from the `deepseek` command, streams reasoning blocks, edits local workspaces with approval gates, and includes an auto mode that chooses both model and thinking level per turn.
+# DeepSeek TUI (mooseo011 fork)
+
+> **USE THE SOURCE FROM GITHUB BECAUSE THIS IS A FORK THAT ISN'T ON NPM.**
+>
+> Terminal coding agent for DeepSeek V4 with a `/swarm` orchestrator that
+> fans tasks out to parallel worker sub-agents. It runs from the `deepseek`
+> command, streams reasoning blocks, edits local workspaces with approval
+> gates, and includes an auto mode that chooses both model and thinking
+> level per turn.
 
 [简体中文 README](README.zh-CN.md)
 [日本語 README](README.ja-JP.md)
 
-## Install
+> [!IMPORTANT]
+> **This is a fork.** The fork lives at
+> [github.com/mooseo011/DeepSeek-TUI](https://github.com/mooseo011/DeepSeek-TUI)
+> and is **not published to npm, crates.io, Homebrew, Scoop, or GHCR**. The
+> only supported install path is `git clone` + `cargo install --path`.
+> Installing `deepseek-tui` from those registries fetches the upstream
+> [`Hmbown/DeepSeek-TUI`](https://github.com/Hmbown/DeepSeek-TUI) binaries
+> and **will not include the `/swarm` orchestrator** added in this fork.
 
-`deepseek` is distributed as Rust binaries: the dispatcher command
-(`deepseek`) and the companion TUI runtime (`deepseek-tui`). Pick whichever
-install path you already use; they all put the same commands on your `PATH`.
-The npm package is an installer/wrapper for the release binaries, not the
-agent runtime itself.
+## Install (from source — required for this fork)
 
-```bash
-# 1. npm — easiest if you already use Node. The package downloads the
-#    matching prebuilt Rust binaries from GitHub Releases.
-npm install -g deepseek-tui
-
-# 2. Cargo — no Node needed.
-cargo install deepseek-tui-cli --locked   # `deepseek` (entry point)
-cargo install deepseek-tui     --locked   # `deepseek-tui` (TUI binary)
-
-# 3. Homebrew — macOS package manager.
-brew tap Hmbown/deepseek-tui
-brew install deepseek-tui
-
-# 4. Direct download — no package manager or toolchain.
-#    https://github.com/Hmbown/DeepSeek-TUI/releases
-#    Prebuilt for Linux x64/ARM64, macOS x64/ARM64, Windows x64.
-
-# 5. Docker — prebuilt release image.
-docker volume create deepseek-tui-home
-docker run --rm -it \
-  -e DEEPSEEK_API_KEY="$DEEPSEEK_API_KEY" \
-  -v deepseek-tui-home:/home/deepseek/.deepseek \
-  -v "$PWD:/workspace" \
-  -w /workspace \
-  ghcr.io/hmbown/deepseek-tui:latest
-```
-
-> In mainland China, speed up the npm path with
-> `--registry=https://registry.npmmirror.com`, or use the
-> [Cargo mirror](#china--mirror-friendly-installation) below.
->
-> Download safety: official release binaries live under
-> `https://github.com/Hmbown/DeepSeek-TUI/releases`. For manual downloads,
-> verify the SHA-256 manifest and avoid look-alike repositories or search-result
-> mirrors. See [download safety and checksums](docs/INSTALL.md#2-download-safety-and-checksums).
-
-Already installed? Use the updater that matches the install path:
+`deepseek` is two Rust binaries: the dispatcher (`deepseek`) and the
+companion TUI runtime (`deepseek-tui`). You must install **both** from the
+fork's source — the dispatcher shells out to `deepseek-tui` on `PATH` at
+runtime, so installing only one will leave you on the stale upstream
+runtime (or with no runtime at all).
 
 ```bash
-deepseek update                         # release-binary updater
-npm install -g deepseek-tui@latest      # npm wrapper
-brew update && brew upgrade deepseek-tui
-cargo install deepseek-tui-cli --locked --force
-cargo install deepseek-tui     --locked --force
+# Linux build deps (Debian/Ubuntu/RHEL):
+#   sudo apt-get install -y build-essential pkg-config libdbus-1-dev
+#   sudo dnf install -y gcc make pkgconf-pkg-config dbus-devel
+
+# 1. Clone this fork. (Not the upstream Hmbown/DeepSeek-TUI repo.)
+git clone https://github.com/mooseo011/DeepSeek-TUI.git
+cd DeepSeek-TUI
+
+# 2. Build & install both binaries from source. Requires Rust 1.88+.
+cargo install --path crates/cli --locked   # provides `deepseek`
+cargo install --path crates/tui --locked   # provides `deepseek-tui`
+
+# 3. Verify.
+deepseek --version
 ```
 
-[![CI](https://github.com/Hmbown/DeepSeek-TUI/actions/workflows/ci.yml/badge.svg)](https://github.com/Hmbown/DeepSeek-TUI/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/deepseek-tui)](https://www.npmjs.com/package/deepseek-tui)
-[![crates.io](https://img.shields.io/crates/v/deepseek-tui-cli?label=crates.io)](https://crates.io/crates/deepseek-tui-cli)
-[DeepWiki project index](https://deepwiki.com/Hmbown/DeepSeek-TUI)
+To pull future updates from this fork:
+
+```bash
+cd /path/to/DeepSeek-TUI
+git pull
+cargo install --path crates/cli --locked --force
+cargo install --path crates/tui --locked --force
+```
+
+> If you previously installed the upstream release via npm/Cargo registry/
+> Homebrew/Scoop/Docker, the fork's `cargo install --path ... --force`
+> will overwrite the `deepseek` and `deepseek-tui` binaries on your
+> `PATH` with the source-built ones. Run `which deepseek` to confirm
+> which binary is active.
 
 ![DeepSeek TUI screenshot](assets/screenshot.png)
+
+<details>
+<summary>Want the upstream Hmbown release binaries instead?</summary>
+
+If you don't need this fork's `/swarm` feature, you can install the
+upstream binaries from npm / Cargo registry / Homebrew / Docker / GitHub
+Releases. See the
+[upstream Hmbown/DeepSeek-TUI README](https://github.com/Hmbown/DeepSeek-TUI#install)
+and [docs/INSTALL.md](docs/INSTALL.md) for those paths. The upstream
+binaries do **not** carry this fork's changes.
+
+</details>
 
 ---
 
@@ -76,6 +84,7 @@ It is built around DeepSeek V4 (`deepseek-v4-pro` / `deepseek-v4-flash`), includ
 
 ### Key Features
 
+- **`/swarm` orchestrator mode** *(new in this fork)* — toggle a session-level flag that wraps each user turn with a byte-stable orchestrator brief, telling the assistant to decompose the request, dispatch parallel `agent_open` worker sub-agents (with stable session names + cache-aware `fork_context` / `resident_file` defaults), gather via `agent_eval`, verify side effects, and integrate a single answer. The wrapper is byte-stable across turns so DeepSeek's automatic prefix cache keeps hitting on the system prompt, tool list, and prior history. See [Swarm mode](#swarm-mode-fork-only).
 - **Auto mode** — `--model auto` / `/model auto` chooses both the model and thinking level for each turn
 - **Thinking-mode streaming** — see DeepSeek reasoning blocks as the model works
 - **Full tool suite** — file ops, shell execution, git, web search/browse, apply-patch, sub-agents, MCP servers
@@ -122,16 +131,20 @@ See [docs/SUBAGENTS.md](docs/SUBAGENTS.md) for the full sub-agent reference.
 ## Quickstart
 
 ```bash
-git clone https://github.com/Hmbown/DeepSeek-TUI.git
+git clone https://github.com/mooseo011/DeepSeek-TUI.git
 cd DeepSeek-TUI
-
 cargo install --path crates/cli --locked   # provides `deepseek`
 cargo install --path crates/tui --locked   # provides `deepseek-tui`
-
 deepseek --version
+deepseek --model auto
 ```
 
-Prebuilt binaries are published for **Linux x64**, **Linux ARM64** (v0.8.8+), **macOS x64**, **macOS ARM64**, and **Windows x64**. For other targets (musl, riscv64, FreeBSD, etc.), see [Install from source](#install-from-source) or [docs/INSTALL.md](docs/INSTALL.md).
+Requires Rust 1.88+ (`rustup default stable`). Linux build deps:
+`build-essential`, `pkg-config`, `libdbus-1-dev` (`apt`) or
+`gcc make pkgconf-pkg-config dbus-devel` (`dnf`). The upstream
+`Hmbown/DeepSeek-TUI` publishes prebuilt binaries for Linux x64/ARM64,
+macOS x64/ARM64, and Windows x64 — those do **not** include this fork's
+`/swarm` feature; see the install note at the top of this README.
 
 On first launch you'll be prompted for your [DeepSeek API key](https://platform.deepseek.com/api_keys). The key is saved to `~/.deepseek/config.toml` so it works from any directory without OS credential prompts.
 
@@ -180,13 +193,31 @@ Before the real turn is sent, the app makes a small `deepseek-v4-flash` routing 
 `auto` is local to DeepSeek TUI. The upstream API never receives `model: "auto"`; it receives the concrete model and thinking setting chosen for that turn. The TUI shows the selected route, and cost tracking is charged against the model that actually ran. If the router call fails or returns an invalid answer, the app falls back to a local heuristic. Sub-agents inherit auto mode unless you assign them an explicit model.
 
 Use a fixed model or fixed thinking level when you want repeatable benchmarking, a strict cost ceiling, or a specific provider/model mapping.
-<details id="install-from-source">
-<summary>Install from source</summary>
 
-Works on any Tier-1 Rust target — including musl, riscv64, FreeBSD, and older ARM64 distros.
-Both binaries are required. Cross-compilation and platform-specific notes: [docs/INSTALL.md](docs/INSTALL.md).
+### China / Mirror-friendly source builds
 
-</details>
+If `crates.io` downloads are slow from mainland China, point Cargo at a
+mirror before running `cargo install --path` against the cloned fork:
+
+```toml
+# ~/.cargo/config.toml
+[source.crates-io]
+replace-with = "tuna"
+
+[source.tuna]
+registry = "sparse+https://mirrors.tuna.tsinghua.edu.cn/crates.io-index/"
+```
+
+```bash
+cargo install --path crates/cli --locked
+cargo install --path crates/tui --locked
+deepseek --version
+```
+
+Cross-compilation and platform-specific notes (musl, riscv64, FreeBSD,
+older ARM64 distros) for the upstream release are in
+[docs/INSTALL.md](docs/INSTALL.md); the same `cargo install --path`
+flow works against this fork on those targets.
 
 ### Other API Providers
 
@@ -236,9 +267,10 @@ as a fallback.
 
 ## Release Notes
 
-Release-specific changes live in [CHANGELOG.md](CHANGELOG.md). This README
-stays focused on current install paths, core workflows, provider setup, runtime
-interfaces, and extension points.
+Release-specific changes live in [CHANGELOG.md](CHANGELOG.md). The
+`[Unreleased]` section at the top tracks fork-specific changes (such as
+`/swarm`) on top of the latest upstream `Hmbown/DeepSeek-TUI` release.
+This fork does not cut its own version tags; pull from `main` to update.
 
 ---
 
@@ -268,8 +300,47 @@ deepseek run pr <N>                              # fetch PR and pre-seed review 
 deepseek mcp list                                # list configured MCP servers
 deepseek mcp validate                            # validate MCP config/connectivity
 deepseek mcp-server                              # run dispatcher MCP stdio server
-deepseek update                                  # check for and apply binary updates
 ```
+
+> `deepseek update` is **disabled in this fork.** It checks for upstream
+> release binaries from `Hmbown/DeepSeek-TUI` and would replace your
+> source-built binaries (and the `/swarm` feature) with the upstream
+> release. To update, run `git pull` in the cloned fork and re-run
+> `cargo install --path crates/cli --locked --force` and
+> `cargo install --path crates/tui --locked --force`.
+
+> The published Docker image at `ghcr.io/hmbown/deepseek-tui:latest` ships
+> the upstream release binaries and **does not include this fork's
+> `/swarm` feature.** If you want a containerized fork build, run
+> `docker build -t deepseek-tui:swarm .` against the cloned repository's
+> `Dockerfile`. See [docs/DOCKER.md](docs/DOCKER.md) for the upstream
+> image notes.
+
+### Zed / ACP
+
+DeepSeek can run as a custom Agent Client Protocol server for editors that
+spawn local ACP agents over stdio. In Zed, add a custom agent server:
+
+```json
+{
+  "agent_servers": {
+    "DeepSeek": {
+      "type": "custom",
+      "command": "deepseek",
+      "args": ["serve", "--acp"],
+      "env": {}
+    }
+  }
+}
+```
+
+The first ACP slice supports new sessions and prompt responses through your
+existing DeepSeek config/API key. Tool-backed editing and checkpoint replay are
+not exposed through ACP yet.
+
+Community-maintained adapter: [acp-deepseek-adapter](https://github.com/rockeverm3m/acp-deepseek-adapter)
+bridges `deepseek exec --auto` to `cc-connect` for users who need tool-backed
+ACP workflows outside the built-in Zed slice.
 
 ### Keyboard Shortcuts
 
@@ -297,7 +368,77 @@ Full shortcut catalog: [docs/KEYBINDINGS.md](docs/KEYBINDINGS.md).
 | **Plan** 🔍 | Read-only investigation — model explores and proposes a plan before making changes; multi-step investigations use `checklist_write` |
 | **Agent** 🤖 | Default interactive mode — multi-step tool use with approval gates; substantial work is tracked with `checklist_write` |
 | **YOLO** ⚡ | Auto-approve all tools in a trusted workspace; multi-step work still keeps a visible checklist |
-| **SWARM** | Added by me in this fork adds a swarm use: /swarm on or /swarm off |
+| **Swarm** 🐝 *(fork)* | Cross-cutting flag layered on top of any mode. Toggle with `/swarm on` / `/swarm off`. See [Swarm Mode](#swarm-mode-fork-only) below. |
+
+---
+
+## Swarm Mode (fork-only)
+
+`/swarm` adds an **orchestrator-led multi-agent** layer on top of the
+existing modes. While swarm is active, every user message is wrapped at
+wire-time with a stable orchestrator brief that tells the assistant to
+decompose the request, dispatch parallel `agent_open` worker
+sub-agents in a single turn, gather results via `agent_eval`, verify
+side effects, and integrate one coherent answer. The visible **User**
+transcript cell still shows your raw input — only the wire payload
+carries the wrapper.
+
+Why this is cache-cheap (token efficiency is the whole point):
+
+- **Byte-stable wrapper across turns** — DeepSeek's automatic prefix
+  cache keeps hitting on system prompt + tool list + prior history; the
+  wrapper text itself does not drift turn-over-turn (asserted by a unit
+  test).
+- **Stable worker session names** — the brief tells the orchestrator to
+  re-use names like `worker_search`, `worker_patch`, `worker_verify` so
+  each worker's standing prefix stays cache-warm across user turns.
+- **`fork_context: false` by default** — fresh narrow worker contexts
+  have small prefills and run cheaply; the brief only allows
+  `fork_context: true` when a worker genuinely needs prior parent turns.
+- **`resident_file` leases** — repeated single-file work pins the file
+  into the worker's system prefix once and stays warm across every
+  `send_input` / `agent_eval` on that worker (one lease per file at a
+  time; the existing `RESIDENT_LEASES` enforcement applies).
+- **Parallel `agent_open` in one turn** — the dispatcher already
+  parallelizes; the brief mandates batching rather than chaining.
+- **`handle_read` over re-quoting** — large worker transcripts are
+  pulled in bounded slices via `handle_read`, never copied wholesale
+  back into the parent context.
+- **Append-only history rule reinforced** — never reorder, paraphrase,
+  or re-quote earlier messages; reshuffling busts every cached byte
+  that follows.
+
+Sub-commands:
+
+```text
+/swarm                       # toggle on/off
+/swarm on                    # activate (no immediate dispatch)
+/swarm off                   # deactivate
+/swarm status                # show current state + session brief
+/swarm brief <text>          # pin a session brief surfaced inside the wrapper
+/swarm brief clear           # clear the pinned brief
+/swarm <task>                # activate (if needed) and immediately dispatch <task>
+```
+
+The pinned session brief is a place to park standing context — focus
+areas, exclusions, repo-specific conventions — without restating it
+every turn. Aliases: `/fengqun`, `/蜂群`.
+
+Workflow per user turn while swarm is active:
+
+1. You prompt as usual.
+2. The orchestrator (the main assistant) decomposes the request and
+   emits parallel `agent_open` worker calls in one turn.
+3. The orchestrator gathers via `agent_eval`, verifies side effects
+   (workers self-report — file edits, shell commands, and test claims
+   are re-checked before being treated as facts), and returns one
+   integrated answer.
+4. You prompt again. Workers stay open across turns by design;
+   `agent_close` runs only when a worker is permanently done, idle, or
+   needs to drop its `resident_file` lease.
+
+Swarm activation does not persist into saved sessions in this revision;
+re-activate after `/load` with `/swarm on`.
 
 ---
 
@@ -475,8 +616,12 @@ This project ships with help from a growing community of contributors (this is f
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Pull requests welcome — check the [open issues](https://github.com/Hmbown/DeepSeek-TUI/issues) for good first contributions.
-
+This fork lives at
+[github.com/mooseo011/DeepSeek-TUI](https://github.com/mooseo011/DeepSeek-TUI).
+Open fork-specific issues and PRs there. Upstream contribution guidance
+in [CONTRIBUTING.md](CONTRIBUTING.md) still applies; the upstream
+project's open issue list lives at
+[github.com/Hmbown/DeepSeek-TUI/issues](https://github.com/Hmbown/DeepSeek-TUI/issues).
 
 
 > [!Note]
@@ -488,4 +633,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Pull requests welcome — check the [ope
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/chart?repos=Hmbown/DeepSeek-TUI&type=date&legend=top-left)](https://www.star-history.com/?repos=Hmbown%2FDeepSeek-TUI&type=date&logscale=&legend=top-left)
+[![Star History Chart](https://api.star-history.com/chart?repos=mooseo011/DeepSeek-TUI,Hmbown/DeepSeek-TUI&type=date&legend=top-left)](https://www.star-history.com/?repos=mooseo011%2FDeepSeek-TUI,Hmbown%2FDeepSeek-TUI&type=date&logscale=&legend=top-left)
