@@ -216,8 +216,14 @@ pub const COMMANDS: &[CommandInfo] = &[
     CommandInfo {
         name: "swarm",
         aliases: &["fengqun", "蜂群"],
-        usage: "/swarm [on|off|status|brief <text>|<task>]",
+        usage: "/swarm [on|off|status|help|brief <text>|brief clear|<task>]",
         description_id: MessageId::CmdSwarmDescription,
+    },
+    CommandInfo {
+        name: "swarm-big",
+        aliases: &["swarmbig", "big-swarm"],
+        usage: "/swarm-big [on|off|status|help|brief <text>|brief clear|<task>]",
+        description_id: MessageId::CmdSwarmBigDescription,
     },
     CommandInfo {
         name: "links",
@@ -563,6 +569,7 @@ pub fn execute(cmd: &str, app: &mut App) -> CommandResult {
         "subagents" | "agents" | "zhinengti" => core::subagents(app),
         "agent" | "daili" => agent(app, arg),
         "swarm" | "fengqun" | "蜂群" => swarm::swarm(app, arg),
+        "swarm-big" | "swarmbig" | "big-swarm" => swarm::swarm_big(app, arg),
         "links" | "dashboard" | "api" | "lianjie" => core::deepseek_links(app),
         "feedback" => feedback::feedback(app, arg),
         "home" | "stats" | "overview" | "zhuye" | "shouye" => core::home_dashboard(app),

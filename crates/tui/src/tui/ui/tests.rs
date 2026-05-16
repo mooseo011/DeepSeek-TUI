@@ -1667,6 +1667,30 @@ fn swarm_mode_wraps_outgoing_user_content_with_orchestrator_brief() {
 }
 
 #[test]
+fn swarm_big_mode_wraps_outgoing_user_content_with_big_orchestrator_brief() {
+    let mut app = create_test_app();
+    app.swarm_active = true;
+    app.swarm_mode = crate::tui::app::SwarmMode::Big;
+    let message = QueuedMessage::new("fan out across the workspace".to_string(), None);
+
+    let content = queued_message_content_for_app(&app, &message, None);
+
+    assert!(
+        content.contains("<swarm_big_orchestrator>"),
+        "swarm-big wrapper should be present in outgoing content"
+    );
+    assert!(
+        content.contains("10-100 sub-agent workers"),
+        "big orchestrator brief should request the larger worker pool"
+    );
+    assert!(
+        content.contains("resident_file"),
+        "big orchestrator brief should keep resident-file cache guidance"
+    );
+    assert!(content.contains("User request: fan out across the workspace"));
+}
+
+#[test]
 fn swarm_mode_off_leaves_user_content_untouched() {
     let app = create_test_app();
     assert!(!app.swarm_active, "swarm should default off");
@@ -1705,7 +1729,9 @@ fn swarm_wrapper_carries_parent_yolo_state_for_each_mode() {
     fn parent_state_body(wrapped: &str) -> &str {
         let open = "<parent_state>";
         let close = "</parent_state>";
-        let start = wrapped.find(open).expect("wrapper must contain <parent_state>");
+        let start = wrapped
+            .find(open)
+            .expect("wrapper must contain <parent_state>");
         let after_open = start + open.len();
         let end_rel = wrapped[after_open..]
             .find(close)

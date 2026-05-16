@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`/swarm-big` large-orchestrator mode.** A new slash command mirrors
+  `/swarm` but swaps in a big-swarm prompt that targets 10-100 worker
+  sub-agents plus the orchestrator when runtime capacity allows. It uses
+  the same session brief, byte-stable wrapper shape, parent approval-state
+  injection, stable worker names, `fork_context: false` default,
+  `resident_file` leases, `handle_read` guidance, and parallel
+  `agent_open` / `agent_eval` workflow as regular swarm mode.
 - **`/swarm` orchestrator-led multi-agent mode.** A new slash command
   (`/swarm`, with `fengqun` / `蜂群` aliases) toggles a session-level
   swarm flag. While active, every outbound user message is wrapped at
@@ -29,6 +36,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `/swarm <task>` for a one-shot activation-plus-dispatch. The pinned
   session brief lets the user park standing context (focus areas,
   exclusions) without restating it every turn.
+
+### Fixed
+
+- **`/swarm` one-shot task parsing no longer swallows reserved first words.**
+  Inputs such as `/swarm on fix parser` and `/swarm status audit cli`
+  now dispatch as tasks instead of being misread as control commands with
+  ignored trailing text. The command palette usage now also documents
+  `help` and `brief clear`.
 
 ## [0.8.38] - 2026-05-15
 

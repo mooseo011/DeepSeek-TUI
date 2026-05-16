@@ -412,6 +412,7 @@ fn command_runs_directly(name: &str) -> bool {
             | "yolo"
             | "agent"
             | "swarm"
+            | "swarm-big"
             | "plan"
             | "trust"
             | "logout"

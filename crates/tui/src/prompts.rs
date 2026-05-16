@@ -373,6 +373,11 @@ pub const MEMORY_GUIDANCE: &str = include_str!("prompts/memory_guidance.md");
 /// `crates/tui/src/commands/swarm.rs` and the build-up in
 /// `queued_message_content_for_app` for the injection point.
 pub const SWARM_ORCHESTRATOR_BRIEF: &str = include_str!("prompts/swarm_orchestrator.md");
+/// Standing instructions injected into every user message while
+/// `/swarm-big` mode is active. This mirrors the regular swarm cache and
+/// worker-efficiency contract, but directs the orchestrator to fan out a
+/// much larger 10-100 worker pool when the runtime budget allows it.
+pub const SWARM_BIG_ORCHESTRATOR_BRIEF: &str = include_str!("prompts/swarm_big_orchestrator.md");
 
 /// Wrap a raw user request with the swarm orchestrator standing brief
 /// plus any custom session brief the user pinned via `/swarm brief …`,
@@ -412,20 +417,51 @@ pub fn swarm_orchestrator_wrap(
     session_brief: Option<&str>,
     parent_yolo: bool,
 ) -> String {
+    orchestrator_wrap(
+        "swarm_orchestrator",
+        SWARM_ORCHESTRATOR_BRIEF,
+        user_request,
+        session_brief,
+        parent_yolo,
+    )
+}
+
+/// Wrap a raw user request with the large-scale swarm orchestrator standing
+/// brief used by `/swarm-big`.
+#[must_use]
+pub fn swarm_big_orchestrator_wrap(
+    user_request: &str,
+    session_brief: Option<&str>,
+    parent_yolo: bool,
+) -> String {
+    orchestrator_wrap(
+        "swarm_big_orchestrator",
+        SWARM_BIG_ORCHESTRATOR_BRIEF,
+        user_request,
+        session_brief,
+        parent_yolo,
+    )
+}
+
+fn orchestrator_wrap(
+    tag: &str,
+    brief: &str,
+    user_request: &str,
+    session_brief: Option<&str>,
+    parent_yolo: bool,
+) -> String {
     let approval_mode = if parent_yolo { "yolo" } else { "gated" };
-    let parent_state_block = format!(
-        "<parent_state>\napproval_mode: {approval_mode}\n</parent_state>\n\n"
-    );
+    let parent_state_block =
+        format!("<parent_state>\napproval_mode: {approval_mode}\n</parent_state>\n\n");
     let trimmed_brief = session_brief.map(str::trim).filter(|s| !s.is_empty());
     let session_block = match trimmed_brief {
-        Some(brief) => format!(
-            "\n\n## Session brief\n\n<session_brief>\n{brief}\n</session_brief>"
-        ),
+        Some(brief) => {
+            format!("\n\n## Session brief\n\n<session_brief>\n{brief}\n</session_brief>")
+        }
         None => String::new(),
     };
     format!(
-        "<swarm_orchestrator>\n{parent_state_block}{brief}{session_block}\n</swarm_orchestrator>\n\nUser request: {user_request}",
-        brief = SWARM_ORCHESTRATOR_BRIEF,
+        "<{tag}>\n{parent_state_block}{brief}{session_block}\n</{tag}>\n\nUser request: {user_request}",
     )
 }
 
@@ -888,6 +924,26 @@ mod tests {
     }
 
     #[test]
+    fn swarm_big_orchestrator_brief_is_non_empty_and_mentions_scale_and_caching() {
+        assert!(!SWARM_BIG_ORCHESTRATOR_BRIEF.trim().is_empty());
+        for needle in [
+            "/swarm-big",
+            "10-100",
+            "agent_open",
+            "agent_eval",
+            "prefix cache",
+            "fork_context",
+            "resident_file",
+            "handle_read",
+        ] {
+            assert!(
+                SWARM_BIG_ORCHESTRATOR_BRIEF.contains(needle),
+                "swarm-big orchestrator brief missing required term: {needle}"
+            );
+        }
+    }
+
+    #[test]
     fn swarm_orchestrator_brief_tells_the_model_to_actually_write_files() {
         // Regression guard: an earlier revision of this brief biased the
         // orchestrator toward read-only "report back" workers, which
@@ -996,6 +1052,25 @@ mod tests {
     }
 
     #[test]
+    fn swarm_big_orchestrator_wrap_includes_request_and_brief() {
+        let wrapped = swarm_big_orchestrator_wrap("map the workspace", None, false);
+        assert!(wrapped.contains("<swarm_big_orchestrator>"));
+        assert!(wrapped.contains("</swarm_big_orchestrator>"));
+        assert!(wrapped.contains("10-100 sub-agent workers"));
+        assert!(wrapped.contains("User request: map the workspace"));
+        assert!(!wrapped.contains("## Session brief"));
+
+        let with_brief = swarm_big_orchestrator_wrap(
+            "refactor",
+            Some("Repo is mid-migration to V4 prompts."),
+            false,
+        );
+        assert!(with_brief.contains("## Session brief"));
+        assert!(with_brief.contains("Repo is mid-migration to V4 prompts."));
+        assert!(with_brief.contains("User request: refactor"));
+    }
+
+    #[test]
     fn swarm_orchestrator_wrap_is_byte_stable_across_calls() {
         // Cache-friendliness contract: same inputs (including the same
         // parent_yolo state) must produce the same bytes so DeepSeek's
@@ -1006,6 +1081,17 @@ mod tests {
         let c = swarm_orchestrator_wrap("do something", Some("focus area: tests"), true);
         let d = swarm_orchestrator_wrap("do something", Some("focus area: tests"), true);
         assert_eq!(c, d);
+    }
+
+    #[test]
+    fn swarm_big_orchestrator_wrap_is_byte_stable_across_calls() {
+        let a = swarm_big_orchestrator_wrap("do something", Some("focus area: tests"), false);
+        let b = swarm_big_orchestrator_wrap("do something", Some("focus area: tests"), false);
+        assert_eq!(a, b);
+        let c = swarm_big_orchestrator_wrap("do something", Some("focus area: tests"), true);
+        let d = swarm_big_orchestrator_wrap("do something", Some("focus area: tests"), true);
+        assert_eq!(c, d);
+        assert_ne!(a, c);
     }
 
     #[test]
@@ -1020,7 +1106,9 @@ mod tests {
         fn parent_state_body(wrapped: &str) -> &str {
             let open = "<parent_state>";
             let close = "</parent_state>";
-            let start = wrapped.find(open).expect("wrapper must contain <parent_state>");
+            let start = wrapped
+                .find(open)
+                .expect("wrapper must contain <parent_state>");
             let after_open = start + open.len();
             let end_rel = wrapped[after_open..]
                 .find(close)

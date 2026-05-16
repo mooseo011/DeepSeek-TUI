@@ -84,7 +84,7 @@ It is built around DeepSeek V4 (`deepseek-v4-pro` / `deepseek-v4-flash`), includ
 
 ### Key Features
 
-- **`/swarm` orchestrator mode** *(new in this fork)* — toggle a session-level flag that wraps each user turn with a byte-stable orchestrator brief, telling the assistant to decompose the request, dispatch parallel `agent_open` worker sub-agents (with stable session names + cache-aware `fork_context` / `resident_file` defaults), gather via `agent_eval`, verify side effects, and integrate a single answer. The wrapper is byte-stable across turns so DeepSeek's automatic prefix cache keeps hitting on the system prompt, tool list, and prior history. See [Swarm mode](#swarm-mode-fork-only).
+- **`/swarm` and `/swarm-big` orchestrator modes** *(new in this fork)* — toggle a session-level flag that wraps each user turn with a byte-stable orchestrator brief, telling the assistant to decompose the request, dispatch parallel `agent_open` worker sub-agents (a few for `/swarm`, 10-100 for `/swarm-big` when runtime capacity allows), gather via `agent_eval`, verify side effects, and integrate a single answer. Both wrappers keep stable session names plus cache-aware `fork_context` / `resident_file` defaults so DeepSeek's automatic prefix cache keeps hitting on the system prompt, tool list, and prior history. See [Swarm mode](#swarm-mode-fork-only).
 - **Auto mode** — `--model auto` / `/model auto` chooses both the model and thinking level for each turn
 - **Thinking-mode streaming** — see DeepSeek reasoning blocks as the model works
 - **Full tool suite** — file ops, shell execution, git, web search/browse, apply-patch, sub-agents, MCP servers
@@ -368,7 +368,7 @@ Full shortcut catalog: [docs/KEYBINDINGS.md](docs/KEYBINDINGS.md).
 | **Plan** 🔍 | Read-only investigation — model explores and proposes a plan before making changes; multi-step investigations use `checklist_write` |
 | **Agent** 🤖 | Default interactive mode — multi-step tool use with approval gates; substantial work is tracked with `checklist_write` |
 | **YOLO** ⚡ | Auto-approve all tools in a trusted workspace; multi-step work still keeps a visible checklist |
-| **Swarm** 🐝 *(fork)* | Cross-cutting flag layered on top of any mode. Toggle with `/swarm on` / `/swarm off`. See [Swarm Mode](#swarm-mode-fork-only) below. |
+| **Swarm** 🐝 *(fork)* | Cross-cutting flag layered on top of any mode. Toggle with `/swarm on` / `/swarm off`; use `/swarm-big` for a 10-100 worker pool. See [Swarm Mode](#swarm-mode-fork-only) below. |
 
 ---
 
@@ -382,6 +382,13 @@ sub-agents in a single turn, gather results via `agent_eval`, verify
 side effects, and integrate one coherent answer. The visible **User**
 transcript cell still shows your raw input — only the wire payload
 carries the wrapper.
+
+`/swarm-big` uses the same session flag, session brief, cache discipline,
+and token-efficiency rules, but swaps in a big-swarm brief that targets
+10-100 worker sub-agents plus the orchestrator. If the configured
+sub-agent concurrency cap is lower than the useful worker count, the
+brief tells the orchestrator to work in waves while preserving stable
+worker names.
 
 Why this is cache-cheap (token efficiency is the whole point):
 
@@ -418,6 +425,9 @@ Sub-commands:
 /swarm brief <text>          # pin a session brief surfaced inside the wrapper
 /swarm brief clear           # clear the pinned brief
 /swarm <task>                # activate (if needed) and immediately dispatch <task>
+/swarm-big                   # toggle big swarm on/off
+/swarm-big on                # activate the 10-100 worker big-swarm brief
+/swarm-big <task>            # activate big swarm and immediately dispatch <task>
 ```
 
 The pinned session brief is a place to park standing context — focus
@@ -438,7 +448,7 @@ Workflow per user turn while swarm is active:
    needs to drop its `resident_file` lease.
 
 Swarm activation does not persist into saved sessions in this revision;
-re-activate after `/load` with `/swarm on`.
+re-activate after `/load` with `/swarm on` or `/swarm-big on`.
 
 ---
 

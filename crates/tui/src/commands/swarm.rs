@@ -1,6 +1,7 @@
-//! `/swarm` slash command: orchestrator-led multi-agent mode.
+//! `/swarm` and `/swarm-big` slash commands: orchestrator-led multi-agent modes.
 //!
-//! Activating swarm mode flips a session-level flag (`App::swarm_active`).
+//! Activating swarm mode flips a session-level flag (`App::swarm_active`)
+//! and records the selected scale (`App::swarm_mode`).
 //! While active, every outbound user message is wrapped with the standing
 //! orchestrator brief (`prompts::swarm_orchestrator_wrap`) so the
 //! assistant takes on the orchestrator role: decompose the request,
@@ -16,30 +17,40 @@
 //!
 //! Sub-commands:
 //!
-//! - `/swarm`              — toggle on/off
-//! - `/swarm on`           — activate
-//! - `/swarm off`          — deactivate
-//! - `/swarm status`       — report current state and session brief
-//! - `/swarm brief <text>` — pin a session brief surfaced inside the wrapper
-//! - `/swarm brief clear`  — clear the pinned brief
-//! - `/swarm <task>`       — activate (if needed) and immediately send
+//! - `/swarm` / `/swarm-big`              — toggle on/off
+//! - `/swarm on` / `/swarm-big on`        — activate
+//! - `/swarm off` / `/swarm-big off`      — deactivate
+//! - `/swarm status`                      — report current state and session brief
+//! - `/swarm brief <text>`                — pin a session brief surfaced inside the wrapper
+//! - `/swarm brief clear`                 — clear the pinned brief
+//! - `/swarm <task>` / `/swarm-big <task>` — activate (if needed) and immediately send
 //!   `<task>` through the orchestrator
 //!
 //! Anything that doesn't match a sub-command is treated as a one-shot
 //! task — the swarm activates and the orchestrator gets the user's text
 //! on the next turn.
 
-use crate::tui::app::{App, AppAction};
+use crate::tui::app::{App, AppAction, SwarmMode};
 
 use super::CommandResult;
 
-const USAGE: &str = "Usage: /swarm [on|off|status|brief <text>|brief clear|<task>]";
+const SWARM_USAGE: &str = "Usage: /swarm [on|off|status|help|brief <text>|brief clear|<task>]";
+const SWARM_BIG_USAGE: &str =
+    "Usage: /swarm-big [on|off|status|help|brief <text>|brief clear|<task>]";
 
 pub fn swarm(app: &mut App, args: Option<&str>) -> CommandResult {
+    handle_swarm(app, args, SwarmMode::Standard)
+}
+
+pub fn swarm_big(app: &mut App, args: Option<&str>) -> CommandResult {
+    handle_swarm(app, args, SwarmMode::Big)
+}
+
+fn handle_swarm(app: &mut App, args: Option<&str>, mode: SwarmMode) -> CommandResult {
     let raw = args.unwrap_or("").trim();
 
     if raw.is_empty() {
-        return toggle(app);
+        return toggle(app, mode);
     }
 
     let mut parts = raw.splitn(2, char::is_whitespace);
@@ -47,26 +58,30 @@ pub fn swarm(app: &mut App, args: Option<&str>) -> CommandResult {
     let tail = parts.next().map(str::trim).filter(|s| !s.is_empty());
 
     match head.as_str() {
-        "on" | "enable" | "start" => activate(app, None),
-        "off" | "disable" | "stop" | "end" => deactivate(app),
-        "status" | "show" | "?" => CommandResult::message(status_text(app)),
-        "help" => CommandResult::message(format!("{USAGE}\n\n{}", help_text())),
+        "on" | "enable" | "start" if tail.is_none() => activate(app, mode, None),
+        "off" | "disable" | "stop" | "end" if tail.is_none() => deactivate(app, mode),
+        "status" | "show" | "?" if tail.is_none() => CommandResult::message(status_text(app)),
+        "help" if tail.is_none() => {
+            CommandResult::message(format!("{}\n\n{}", usage(mode), help_text(mode)))
+        }
         "brief" => handle_brief(app, tail),
-        _ => activate(app, Some(raw.to_string())),
+        _ => activate(app, mode, Some(raw.to_string())),
     }
 }
 
-fn toggle(app: &mut App) -> CommandResult {
-    if app.swarm_active {
-        deactivate(app)
+fn toggle(app: &mut App, mode: SwarmMode) -> CommandResult {
+    if app.swarm_active && app.swarm_mode == mode {
+        deactivate(app, mode)
     } else {
-        activate(app, None)
+        activate(app, mode, None)
     }
 }
 
-fn activate(app: &mut App, task: Option<String>) -> CommandResult {
+fn activate(app: &mut App, mode: SwarmMode, task: Option<String>) -> CommandResult {
     let was_active = app.swarm_active;
+    let was_same_mode = was_active && app.swarm_mode == mode;
     app.swarm_active = true;
+    app.swarm_mode = mode;
     let brief_note = match app.swarm_brief.as_deref() {
         Some(brief) if !brief.trim().is_empty() => format!(" (brief: {})", short_brief(brief)),
         _ => String::new(),
@@ -77,31 +92,42 @@ fn activate(app: &mut App, task: Option<String>) -> CommandResult {
         // The dispatch path will inject the orchestrator wrapper because
         // swarm_active is now true. We do NOT pre-wrap here so the
         // assistant's transcript "User" cell shows the raw request.
-        let header = if was_active {
-            format!("Swarm active{brief_note}; dispatching orchestrator.")
+        let header = if was_same_mode {
+            format!(
+                "{} active{brief_note}; dispatching orchestrator.",
+                mode.label()
+            )
         } else {
-            format!("Swarm activated{brief_note}; dispatching orchestrator.")
+            format!(
+                "{} activated{brief_note}; dispatching orchestrator.",
+                mode.label()
+            )
         };
         return CommandResult::with_message_and_action(header, AppAction::SendMessage(task));
     }
 
-    if was_active {
-        CommandResult::message(format!("Swarm already active{brief_note}."))
+    if was_same_mode {
+        CommandResult::message(format!("{} already active{brief_note}.", mode.label()))
     } else {
         CommandResult::message(format!(
-            "Swarm activated{brief_note}. Next prompt will be handled by the orchestrator. Run `/swarm off` to leave."
+            "{} activated{brief_note}. Next prompt will be handled by the orchestrator. Run `{} off` to leave.",
+            mode.label(),
+            mode.command()
         ))
     }
 }
 
-fn deactivate(app: &mut App) -> CommandResult {
+fn deactivate(app: &mut App, mode: SwarmMode) -> CommandResult {
     if !app.swarm_active {
-        return CommandResult::message("Swarm is already off.");
+        return CommandResult::message(format!("{} is already off.", mode.label()));
     }
+    let deactivated_mode = app.swarm_mode;
     app.swarm_active = false;
-    CommandResult::message(
-        "Swarm deactivated. Subsequent prompts go straight to the model. Use `/swarm` to re-enable.",
-    )
+    CommandResult::message(format!(
+        "{} deactivated. Subsequent prompts go straight to the model. Use `{}` to re-enable.",
+        deactivated_mode.label(),
+        deactivated_mode.command()
+    ))
 }
 
 fn handle_brief(app: &mut App, tail: Option<&str>) -> CommandResult {
@@ -117,7 +143,9 @@ fn handle_brief(app: &mut App, tail: Option<&str>) -> CommandResult {
                 ),
             }
         }
-        Some(value) if value.eq_ignore_ascii_case("clear") || value.eq_ignore_ascii_case("none") => {
+        Some(value)
+            if value.eq_ignore_ascii_case("clear") || value.eq_ignore_ascii_case("none") =>
+        {
             if app.swarm_brief.take().is_some() {
                 CommandResult::message("Swarm brief cleared.")
             } else {
@@ -126,19 +154,16 @@ fn handle_brief(app: &mut App, tail: Option<&str>) -> CommandResult {
         }
         Some(value) => {
             app.swarm_brief = Some(value.to_string());
-            CommandResult::message(format!(
-                "Swarm brief pinned: {}",
-                short_brief(value)
-            ))
+            CommandResult::message(format!("Swarm brief pinned: {}", short_brief(value)))
         }
     }
 }
 
 fn status_text(app: &App) -> String {
     let mut out = String::from(if app.swarm_active {
-        "Swarm mode: ON\n"
+        format!("{} mode: ON\n", app.swarm_mode.label())
     } else {
-        "Swarm mode: OFF\n"
+        "Swarm mode: OFF\n".to_string()
     });
     match app.swarm_brief.as_deref() {
         Some(brief) if !brief.trim().is_empty() => {
@@ -150,17 +175,37 @@ fn status_text(app: &App) -> String {
             out.push_str("Session brief: (none)\n");
         }
     }
-    out.push_str("\nWhen ON, the orchestrator brief is wrapped around every user message so the assistant decomposes the task and dispatches parallel `agent_open` workers. Sub-commands: on | off | status | brief <text> | brief clear | <task>.");
+    out.push_str("\nWhen ON, the selected orchestrator brief is wrapped around every user message so the assistant decomposes the task and dispatches parallel `agent_open` workers. Sub-commands: on | off | status | help | brief <text> | brief clear | <task>.");
     out
 }
 
-fn help_text() -> &'static str {
-    "Swarm orchestrator mode wraps each user turn with a standing brief that tells \
-     the assistant to decompose the task, dispatch parallel `agent_open` workers \
-     (with stable session names + cache-aware `fork_context`/`resident_file` defaults), \
-     gather results with `agent_eval`, verify side effects, and integrate one answer. \
-     The wrapper text is byte-stable across turns so DeepSeek's prefix cache keeps \
-     hitting on the system prompt and prior history."
+fn usage(mode: SwarmMode) -> &'static str {
+    match mode {
+        SwarmMode::Standard => SWARM_USAGE,
+        SwarmMode::Big => SWARM_BIG_USAGE,
+    }
+}
+
+fn help_text(mode: SwarmMode) -> &'static str {
+    match mode {
+        SwarmMode::Standard => {
+            "Swarm orchestrator mode wraps each user turn with a standing brief that tells \
+             the assistant to decompose the task, dispatch a few parallel `agent_open` workers \
+             (with stable session names + cache-aware `fork_context`/`resident_file` defaults), \
+             gather results with `agent_eval`, verify side effects, and integrate one answer. \
+             The wrapper text is byte-stable across turns so DeepSeek's prefix cache keeps \
+             hitting on the system prompt and prior history."
+        }
+        SwarmMode::Big => {
+            "Big swarm orchestrator mode wraps each user turn with a standing brief that tells \
+             the assistant to decompose the task, dispatch 10-100 parallel `agent_open` workers \
+             plus an orchestrator when runtime capacity allows, preserve the same stable session \
+             names + cache-aware `fork_context`/`resident_file` defaults, gather with \
+             `agent_eval`, verify side effects, and integrate one answer. The wrapper text is \
+             byte-stable across turns so DeepSeek's prefix cache keeps hitting on the system \
+             prompt and prior history."
+        }
+    }
 }
 
 fn short_brief(text: &str) -> String {
@@ -212,6 +257,7 @@ mod tests {
     fn defaults_to_inactive() {
         let app = app();
         assert!(!app.swarm_active);
+        assert_eq!(app.swarm_mode, SwarmMode::Standard);
         assert!(app.swarm_brief.is_none());
     }
 
@@ -220,9 +266,22 @@ mod tests {
         let mut app = app();
         let on = swarm(&mut app, None);
         assert!(app.swarm_active, "no-arg /swarm should activate");
+        assert_eq!(app.swarm_mode, SwarmMode::Standard);
         assert!(on.action.is_none());
         let off = swarm(&mut app, None);
         assert!(!app.swarm_active, "second /swarm should deactivate");
+        assert!(off.action.is_none());
+    }
+
+    #[test]
+    fn swarm_big_toggles_big_mode() {
+        let mut app = app();
+        let on = swarm_big(&mut app, None);
+        assert!(app.swarm_active, "no-arg /swarm-big should activate");
+        assert_eq!(app.swarm_mode, SwarmMode::Big);
+        assert!(on.action.is_none());
+        let off = swarm_big(&mut app, None);
+        assert!(!app.swarm_active, "second /swarm-big should deactivate");
         assert!(off.action.is_none());
     }
 
@@ -244,9 +303,46 @@ mod tests {
         let mut app = app();
         let result = swarm(&mut app, Some("refactor the auth module to use V4 API"));
         assert!(app.swarm_active, "one-shot /swarm <task> must activate");
+        assert_eq!(app.swarm_mode, SwarmMode::Standard);
         match result.action {
             Some(AppAction::SendMessage(ref text)) => {
                 assert_eq!(text, "refactor the auth module to use V4 API");
+            }
+            _ => panic!("expected SendMessage action, got {:?}", result.action),
+        }
+    }
+
+    #[test]
+    fn swarm_big_one_shot_activates_big_mode_and_dispatches() {
+        let mut app = app();
+        let result = swarm_big(&mut app, Some("audit every crate for unwraps"));
+        assert!(app.swarm_active, "one-shot /swarm-big <task> must activate");
+        assert_eq!(app.swarm_mode, SwarmMode::Big);
+        match result.action {
+            Some(AppAction::SendMessage(ref text)) => {
+                assert_eq!(text, "audit every crate for unwraps");
+            }
+            _ => panic!("expected SendMessage action, got {:?}", result.action),
+        }
+    }
+
+    #[test]
+    fn reserved_control_words_with_trailing_text_dispatch_as_tasks() {
+        let mut app = app();
+        let result = swarm(&mut app, Some("on fix the parser panic"));
+        assert!(app.swarm_active);
+        match result.action {
+            Some(AppAction::SendMessage(ref text)) => {
+                assert_eq!(text, "on fix the parser panic");
+            }
+            _ => panic!("expected SendMessage action, got {:?}", result.action),
+        }
+
+        let result = swarm_big(&mut app, Some("status audit every platform"));
+        assert_eq!(app.swarm_mode, SwarmMode::Big);
+        match result.action {
+            Some(AppAction::SendMessage(ref text)) => {
+                assert_eq!(text, "status audit every platform");
             }
             _ => panic!("expected SendMessage action, got {:?}", result.action),
         }
@@ -262,10 +358,12 @@ mod tests {
         );
 
         let shown = swarm(&mut app, Some("brief"));
-        assert!(shown
-            .message
-            .unwrap()
-            .contains("focus on the deepseek crate"));
+        assert!(
+            shown
+                .message
+                .unwrap()
+                .contains("focus on the deepseek crate")
+        );
 
         swarm(&mut app, Some("brief clear"));
         assert!(app.swarm_brief.is_none());
