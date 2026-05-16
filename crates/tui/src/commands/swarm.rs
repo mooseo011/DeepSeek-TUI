@@ -160,11 +160,11 @@ fn handle_brief(app: &mut App, tail: Option<&str>) -> CommandResult {
 }
 
 fn status_text(app: &App) -> String {
-    let mut out = String::from(if app.swarm_active {
+    let mut out = if app.swarm_active {
         format!("{} mode: ON\n", app.swarm_mode.label())
     } else {
         "Swarm mode: OFF\n".to_string()
-    });
+    };
     match app.swarm_brief.as_deref() {
         Some(brief) if !brief.trim().is_empty() => {
             out.push_str("Session brief: ");

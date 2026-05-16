@@ -337,7 +337,7 @@ impl BackgroundShell {
         #[cfg(unix)]
         if let Some(ShellChild::Process(ref mut proc)) = self.child {
             if let Err(e) = kill_child_process_group(proc) {
-                eprintln!("WARNING: failed to kill process group: {e}");
+                tracing::warn!(?e, "failed to kill process group");
             }
         }
         if let Some(handle) = self.stdout_thread.take() {
@@ -864,12 +864,10 @@ impl ShellManager {
             })
         } else {
             // Timeout - kill the process
-        #[cfg(unix)]
-        if let Err(e) = kill_child_process_group(&mut child) {
-            eprintln!(
-                "WARNING: failed to kill process group after timeout: {e}"
-            );
-        }
+            #[cfg(unix)]
+            if let Err(e) = kill_child_process_group(&mut child) {
+                tracing::warn!(?e, "failed to kill process group after timeout");
+            }
             #[cfg(not(unix))]
             let _ = child.kill();
             let status = child.wait().ok();
