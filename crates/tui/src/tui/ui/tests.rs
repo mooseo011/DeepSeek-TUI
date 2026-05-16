@@ -1693,11 +1693,64 @@ fn swarm_brief_is_embedded_in_the_orchestrator_wrapper() {
 }
 
 #[test]
+fn swarm_wrapper_carries_parent_yolo_state_for_each_mode() {
+    // The orchestrator brief used to have to guess whether sub-agents
+    // could perform writes, which collapsed into the safe-default
+    // "always do writes myself" failure mode for YOLO users. The
+    // wrapper now writes the parent's approval mode deterministically
+    // so the model can branch on the actual runtime capability.
+    //
+    // The brief itself documents both possible values in prose, so
+    // we inspect the `<parent_state>` block contents specifically.
+    fn parent_state_body(wrapped: &str) -> &str {
+        let open = "<parent_state>";
+        let close = "</parent_state>";
+        let start = wrapped.find(open).expect("wrapper must contain <parent_state>");
+        let after_open = start + open.len();
+        let end_rel = wrapped[after_open..]
+            .find(close)
+            .expect("wrapper must contain </parent_state>");
+        &wrapped[after_open..after_open + end_rel]
+    }
+
+    let mut app = create_test_app();
+    app.swarm_active = true;
+    let message = QueuedMessage::new("apply the fix".to_string(), None);
+
+    app.mode = AppMode::Yolo;
+    let yolo = queued_message_content_for_app(&app, &message, None);
+    let yolo_state = parent_state_body(&yolo);
+    assert!(
+        yolo_state.contains("approval_mode: yolo"),
+        "YOLO mode must surface as approval_mode: yolo in <parent_state>"
+    );
+    assert!(!yolo_state.contains("approval_mode: gated"));
+
+    app.mode = AppMode::Agent;
+    let gated = queued_message_content_for_app(&app, &message, None);
+    let gated_state = parent_state_body(&gated);
+    assert!(
+        gated_state.contains("approval_mode: gated"),
+        "Agent mode must surface as approval_mode: gated in <parent_state>"
+    );
+    assert!(!gated_state.contains("approval_mode: yolo"));
+
+    app.mode = AppMode::Plan;
+    let gated_plan = queued_message_content_for_app(&app, &message, None);
+    let gated_plan_state = parent_state_body(&gated_plan);
+    assert!(
+        gated_plan_state.contains("approval_mode: gated"),
+        "Plan mode must surface as approval_mode: gated in <parent_state>"
+    );
+}
+
+#[test]
 fn swarm_wrapper_is_byte_stable_across_turns_for_cache_hits() {
     // Cache hits on DeepSeek's automatic prefix cache require the wrapper
-    // text to be exactly identical across user turns. Verify the wrapper
-    // bytes don't drift when the user submits two consecutive prompts
-    // with the same swarm state.
+    // text to be exactly identical across user turns *at constant
+    // approval mode*. Verify the wrapper bytes don't drift when the
+    // user submits two consecutive prompts with the same swarm + mode
+    // state.
     let mut app = create_test_app();
     app.swarm_active = true;
     let m1 = QueuedMessage::new("first ask".to_string(), None);

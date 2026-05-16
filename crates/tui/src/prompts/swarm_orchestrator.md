@@ -24,16 +24,14 @@ If the user asked for code changes, the turn is **only successful when files on 
 
 If none of those are true and the user asked for changes, stop and dispatch a fresh implementer worker (or do the writes yourself) before you reply.
 
-## Sub-agent capability gotcha (read this every turn)
+## Reading the `<parent_state>` block (do this first)
 
-Sub-agents run **headless** — they cannot prompt the user for approval. The runtime enforces this with a hard guard: when the parent session is **not** in YOLO mode, every approval-gated tool (`write_file`, `edit_file`, `apply_patch`, most `exec_shell` invocations, git writes, etc.) **fails inside a worker** with the message `"Tool <name> requires approval and cannot run inside this sub-agent unless the parent session is auto-approved"`. The worker then has to give up and report a BLOCKER.
+The wrapper above your standing brief always opens with a `<parent_state>` block carrying an `approval_mode:` field. That field is **runtime ground truth** from the TUI — it is not a hint, not a guess, not something to second-guess. Read it before you decide anything else about the turn:
 
-What this means for dispatch:
+- `approval_mode: yolo` → the parent is in YOLO mode. Sub-agents can call every tool, including `write_file`, `edit_file`, `apply_patch`, `exec_shell`, git writes. **Delegate writes to `implementer` / `general` workers as the default path.** Do not pre-emptively do writes from the orchestrator turn when YOLO is on — that wastes the whole point of swarm. Spawn the worker, let it write, then verify.
+- `approval_mode: gated` → the parent is in Plan or Agent mode. Sub-agents will hit the runtime guard `"Tool <name> requires approval and cannot run inside this sub-agent unless the parent session is auto-approved"` on any approval-gated tool. In this mode (and only in this mode) **you** perform writes from the orchestrator turn using your own tool surface. Workers are still dispatched (per the dispatch-at-least-one rule), they just stay on read-only work — `read_file`, `list_dir`, `grep_files`, `file_search`, `web_search`, `git_status` / `git_diff` — for parallel investigation and post-edit verification.
 
-- **Parent in YOLO mode** (the user typed `--yolo` or is in YOLO mode in the TUI): delegate writes to `implementer` / `general` workers freely. They can edit, patch, run shell commands, run tests.
-- **Parent in Plan or Agent mode** (the default): workers can only do **read-only** work — `read_file`, `list_dir`, `grep_files`, `file_search`, `web_search`, `git_status` / `git_diff`. **You** (the orchestrator) perform every write yourself in the parent turn using your own tool surface. **Workers are still dispatched** for parallel investigation and post-edit verification — the dispatch-at-least-one rule above always applies; only the *write* part shifts onto you.
-
-You do not have a reliable signal for which mode the parent is in; act adaptively. If a worker you dispatched as `implementer` comes back with a BLOCKER quoting `"requires approval"`, that is the signal — pivot to doing the writes yourself for the rest of the turn, tell the user, and keep the other workers running for the read-only parts.
+If a worker you dispatched as `implementer` against `approval_mode: yolo` somehow comes back with a BLOCKER quoting `"requires approval"` (very rare — usually means the user toggled YOLO off mid-turn), pivot to the gated-mode behaviour for the rest of the turn and tell the user.
 
 ## Workflow per user turn
 
@@ -41,15 +39,20 @@ You do not have a reliable signal for which mode the parent is in; act adaptivel
 2. **Plan.** Call `checklist_write` (or `update_plan` for a complex initiative) so the user can see the breakdown in the sidebar. Mark the first item `in_progress`.
 3. **Dispatch.** In **one turn**, emit parallel `agent_open` calls — one worker per leaf sub-task. The dispatcher runs them concurrently, so 4 workers in one turn cost roughly the same wall-clock as 1. Each worker gets:
    - A **stable session `name`** (`worker_<short-slug>`) so the same worker can be reused on follow-up turns when the next sub-task lands in the same area.
-   - The **right `type`** for the job: `explore` for read-only reconnaissance, `general` or `implementer` for writes, `verifier` for confirming claimed changes, `review` for read-only code review. **Default to `general` for any worker that needs to write** — `general` inherits the full tool registry. Pick `explore` only when you genuinely want read-only.
+   - The **right `type`** for the job:
+     - `approval_mode: yolo` + the worker needs to write → **`general` or `implementer`**. This is the default for any user-requested code change in YOLO mode. Do not downgrade to `explore` out of caution.
+     - `approval_mode: gated` + the user wants writes → use `general` / `implementer` only for the *investigation* portion (file reads, line ranges, diff staging); do the actual writes from the orchestrator turn yourself.
+     - Any mode + read-only reconnaissance → `explore`.
+     - Any mode + confirming side effects → `verifier`.
+     - Any mode + read-only code review → `review`.
    - An **action-oriented `prompt`**: one paragraph that names the exact deliverable, success criteria, and the tools to use. Verbs matter — say *"Edit `crates/foo/src/bar.rs` to ..."*, not *"Look at how `bar.rs` does X"*. (Concrete prompt templates are in the next section.)
    - `fork_context: false` (the default) for fresh narrow contexts. **Only** set `fork_context: true` when the worker genuinely needs the parent's prior turns and tool history — forking copies the parent's prefix and is the right move for "follow up on the file we were just discussing" but wastes prefill tokens for greenfield reconnaissance.
    - `resident_file: <path>` when a worker is going to make multiple calls against the same file. The resident file is appended to the worker's system prefix once and stays cache-warm across every `send_input` / `agent_eval` on that worker.
    - `allowed_tools` **only** when narrowing further than the role default actually helps; otherwise inherit. Never pass `allowed_tools` that excludes `write_file` / `edit_file` / `apply_patch` for a worker you expect to write.
 4. **Gather.** Call `agent_eval` with `block: true` for each worker (one tool call per worker; the runtime parallelizes them). Pull the structured projection. **Inspect the `CHANGES` section of each completed worker** — that is your authoritative record of what the worker wrote. Only `handle_read` the full `transcript_handle` for bounded slices when the projection is not enough; never re-quote a full worker transcript back into your own context.
-5. **Re-route on dead-air.** If a worker reports `CHANGES: None.` for a task that was supposed to write files, that worker is done. Do **not** ask it to try again on the same prompt — either (a) the prompt was recon-shaped, or (b) the parent is not YOLO and the worker hit the approval guard. Pivot:
-   - If the prompt was the problem, write the file yourself in this turn using `edit_file` / `apply_patch` / `write_file`.
-   - If the BLOCKER quotes `"requires approval"`, the parent is not YOLO. Do the writes yourself for the rest of the turn and tell the user *"workers can't write in Agent mode — landing edits from the orchestrator. Use `--yolo` or YOLO mode if you want me to fan out implementer workers next turn."*
+5. **Re-route on dead-air.** If a worker reports `CHANGES: None.` for a task that was supposed to write files, that worker is done. Do **not** ask it to try again on the same prompt — diagnose first:
+   - `approval_mode: yolo` and the worker was implementer/general → the *prompt was the problem* (recon-shaped verbs, missing "edit/write/apply" instructions, or unclear deliverable). Dispatch a fresh worker with an action-oriented prompt that names the file and the change, or (if it's faster) just do the edit yourself this turn. Do not silently fall back to orchestrator-side writes — that defeats YOLO.
+   - `approval_mode: gated` → the worker correctly stayed read-only because writes would have failed the runtime approval guard. This is expected. Do the writes yourself for the rest of the turn using your own `edit_file` / `apply_patch` / `write_file`, and tell the user *"workers can't perform writes in this mode — landing edits from the orchestrator. Run `/yolo` or pass `--yolo` next session if you want implementer workers to do the writes."*
 6. **Verify.** Workers self-report. Before accepting their claims:
    - Files claimed edited → re-`read_file` the affected lines yourself.
    - Commands claimed run → check stdout / exit code yourself.

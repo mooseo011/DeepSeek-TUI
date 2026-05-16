@@ -375,24 +375,47 @@ pub const MEMORY_GUIDANCE: &str = include_str!("prompts/memory_guidance.md");
 pub const SWARM_ORCHESTRATOR_BRIEF: &str = include_str!("prompts/swarm_orchestrator.md");
 
 /// Wrap a raw user request with the swarm orchestrator standing brief
-/// plus any custom session brief the user pinned via `/swarm brief …`.
+/// plus any custom session brief the user pinned via `/swarm brief …`,
+/// plus a deterministic `<parent_state>` block so the orchestrator
+/// reads YOLO-vs-Agent capability from runtime ground truth instead of
+/// guessing.
 ///
 /// The wire payload looks like:
 ///
 /// ```text
 /// <swarm_orchestrator>
+///   <parent_state>
+///     approval_mode: yolo | gated
+///   </parent_state>
+///
 ///   ... standing brief (byte-stable, cache-friendly) ...
+///
 ///   ## Session brief
-///   <custom_brief>...optional...</custom_brief>
+///   <session_brief>...optional...</session_brief>
 /// </swarm_orchestrator>
 ///
 /// User request: <raw user text>
 /// ```
 ///
+/// Cache stability: at constant `parent_yolo` and constant
+/// `session_brief`, this function is byte-deterministic across turns.
+/// When the user toggles YOLO mode mid-session the `<parent_state>`
+/// flips — that legitimately invalidates the prefix cache from this
+/// point forward, which is the right behavior because the orchestrator
+/// now has different capabilities to act on.
+///
 /// The user-facing "User" cell in the transcript continues to show the
 /// raw request — only the wire content carries the orchestrator wrapper.
 #[must_use]
-pub fn swarm_orchestrator_wrap(user_request: &str, session_brief: Option<&str>) -> String {
+pub fn swarm_orchestrator_wrap(
+    user_request: &str,
+    session_brief: Option<&str>,
+    parent_yolo: bool,
+) -> String {
+    let approval_mode = if parent_yolo { "yolo" } else { "gated" };
+    let parent_state_block = format!(
+        "<parent_state>\napproval_mode: {approval_mode}\n</parent_state>\n\n"
+    );
     let trimmed_brief = session_brief.map(str::trim).filter(|s| !s.is_empty());
     let session_block = match trimmed_brief {
         Some(brief) => format!(
@@ -401,7 +424,7 @@ pub fn swarm_orchestrator_wrap(user_request: &str, session_brief: Option<&str>) 
         None => String::new(),
     };
     format!(
-        "<swarm_orchestrator>\n{brief}{session_block}\n</swarm_orchestrator>\n\nUser request: {user_request}",
+        "<swarm_orchestrator>\n{parent_state_block}{brief}{session_block}\n</swarm_orchestrator>\n\nUser request: {user_request}",
         brief = SWARM_ORCHESTRATOR_BRIEF,
     )
 }
@@ -874,7 +897,7 @@ mod tests {
         //   (a) the turn is only successful when files on disk actually
         //       change (when the user asked for changes), and
         //   (b) sub-agents in a non-YOLO parent cannot perform writes —
-        //       the orchestrator does them itself in that case.
+        //       the orchestrator does them itself only in that case.
         for needle in [
             // Output contract awareness.
             "CHANGES",
@@ -887,6 +910,39 @@ mod tests {
             "requires approval",
             // Explicit fallback path when workers can't write.
             "writes yourself",
+        ] {
+            assert!(
+                SWARM_ORCHESTRATOR_BRIEF.contains(needle),
+                "swarm orchestrator brief missing required term: {needle}"
+            );
+        }
+    }
+
+    #[test]
+    fn swarm_orchestrator_brief_reads_parent_state_as_ground_truth() {
+        // Regression guard for the second overcorrection: after the
+        // "make workers write" fix the brief told the model to "act
+        // adaptively" because it didn't know the parent's approval
+        // mode. The model defaulted to the safe interpretation
+        // ("always assume gated, always write myself"), which made
+        // YOLO users see the orchestrator skip delegation entirely.
+        //
+        // The wrapper now writes a deterministic `<parent_state>` block
+        // with `approval_mode: yolo|gated` and the brief is expected to
+        // (a) tell the model to read that block as runtime ground truth
+        //     instead of guessing, and
+        // (b) make YOLO mode the *default delegate-writes path*, not
+        //     something the model has to be talked into.
+        for needle in [
+            "<parent_state>",
+            "approval_mode: yolo",
+            "approval_mode: gated",
+            // Positive directive — YOLO is the default-delegate path.
+            "Delegate writes to",
+            // Negative directive — do not pre-emptively self-write in
+            // YOLO. Anchored on the unique phrase to avoid coupling to
+            // surrounding markdown.
+            "wastes the whole point",
         ] {
             assert!(
                 SWARM_ORCHESTRATOR_BRIEF.contains(needle),
@@ -923,14 +979,17 @@ mod tests {
 
     #[test]
     fn swarm_orchestrator_wrap_includes_request_and_brief() {
-        let wrapped = swarm_orchestrator_wrap("fix the failing test", None);
+        let wrapped = swarm_orchestrator_wrap("fix the failing test", None, false);
         assert!(wrapped.contains("<swarm_orchestrator>"));
         assert!(wrapped.contains("</swarm_orchestrator>"));
         assert!(wrapped.contains("User request: fix the failing test"));
         assert!(!wrapped.contains("## Session brief"));
 
-        let with_brief =
-            swarm_orchestrator_wrap("refactor", Some("Repo is mid-migration to V4 prompts."));
+        let with_brief = swarm_orchestrator_wrap(
+            "refactor",
+            Some("Repo is mid-migration to V4 prompts."),
+            false,
+        );
         assert!(with_brief.contains("## Session brief"));
         assert!(with_brief.contains("Repo is mid-migration to V4 prompts."));
         assert!(with_brief.contains("User request: refactor"));
@@ -938,11 +997,51 @@ mod tests {
 
     #[test]
     fn swarm_orchestrator_wrap_is_byte_stable_across_calls() {
-        // Cache-friendliness contract: same inputs must produce the same
-        // bytes so DeepSeek's prefix cache hits between user turns.
-        let a = swarm_orchestrator_wrap("do something", Some("focus area: tests"));
-        let b = swarm_orchestrator_wrap("do something", Some("focus area: tests"));
+        // Cache-friendliness contract: same inputs (including the same
+        // parent_yolo state) must produce the same bytes so DeepSeek's
+        // prefix cache hits between user turns.
+        let a = swarm_orchestrator_wrap("do something", Some("focus area: tests"), false);
+        let b = swarm_orchestrator_wrap("do something", Some("focus area: tests"), false);
         assert_eq!(a, b);
+        let c = swarm_orchestrator_wrap("do something", Some("focus area: tests"), true);
+        let d = swarm_orchestrator_wrap("do something", Some("focus area: tests"), true);
+        assert_eq!(c, d);
+    }
+
+    #[test]
+    fn swarm_orchestrator_wrap_emits_parent_state_block_for_each_mode() {
+        // Ground truth signal: the orchestrator brief no longer guesses
+        // YOLO-vs-gated mode — the wrapper writes it deterministically
+        // so the model can branch on the exact runtime capability.
+        //
+        // Note: the brief *itself* documents both possible values in
+        // prose, so we must inspect only the `<parent_state>` block
+        // contents (not look for absence elsewhere in the wrapper).
+        fn parent_state_body(wrapped: &str) -> &str {
+            let open = "<parent_state>";
+            let close = "</parent_state>";
+            let start = wrapped.find(open).expect("wrapper must contain <parent_state>");
+            let after_open = start + open.len();
+            let end_rel = wrapped[after_open..]
+                .find(close)
+                .expect("wrapper must contain </parent_state>");
+            &wrapped[after_open..after_open + end_rel]
+        }
+
+        let yolo = swarm_orchestrator_wrap("ship the fix", None, true);
+        let gated = swarm_orchestrator_wrap("ship the fix", None, false);
+
+        let yolo_state = parent_state_body(&yolo);
+        assert!(yolo_state.contains("approval_mode: yolo"));
+        assert!(!yolo_state.contains("approval_mode: gated"));
+
+        let gated_state = parent_state_body(&gated);
+        assert!(gated_state.contains("approval_mode: gated"));
+        assert!(!gated_state.contains("approval_mode: yolo"));
+
+        // Flipping mode legitimately changes the wrapper bytes — that
+        // is the cache-invalidation we want when the user toggles YOLO.
+        assert_ne!(yolo, gated);
     }
 
     #[test]

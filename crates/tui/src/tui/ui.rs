@@ -3836,7 +3836,15 @@ fn queued_message_content_for_app(
     // carries this wrapper. Skill instructions stay on the inside of the
     // wrapper so the orchestrator sees them as part of the user request.
     if app.swarm_active {
-        crate::prompts::swarm_orchestrator_wrap(&base, app.swarm_brief.as_deref())
+        // Pass the current parent approval state as ground truth so the
+        // orchestrator brief no longer has to guess whether sub-agents
+        // can perform writes. `AppMode::Yolo` is the only state in which
+        // the sub-agent registry guard accepts approval-gated tools
+        // (see `crates/tui/src/tools/subagent/mod.rs`'s
+        // `RegistryToolExecutor::execute_tool` approval check). Plan and
+        // Agent both reject those tools inside workers.
+        let parent_yolo = matches!(app.mode, crate::tui::app::AppMode::Yolo);
+        crate::prompts::swarm_orchestrator_wrap(&base, app.swarm_brief.as_deref(), parent_yolo)
     } else {
         base
     }
