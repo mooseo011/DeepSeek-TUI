@@ -12,6 +12,7 @@ use crate::tui::file_mention::ContextReference;
 use crate::utils::write_atomic;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::ffi::OsString;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 use uuid::Uuid;
@@ -55,23 +56,54 @@ fn normalize_managed_dir(path: PathBuf) -> std::io::Result<PathBuf> {
     }
     let path = if path.is_absolute() {
         // Canonicalize absolute paths to catch symlink injection and
-        // ensure the resolved target is stable.
+        // ensure the resolved target is stable. The final sessions path
+        // may not exist yet; canonicalize the deepest existing ancestor
+        // and append the missing suffix before `create_dir_all` creates it.
         match path.canonicalize() {
             Ok(canonical) => canonical,
-            Err(_) => {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::InvalidInput,
-                    format!(
-                        "managed directory path cannot be resolved: {}",
-                        path.display()
-                    ),
-                ));
-            }
+            Err(_) => canonicalize_existing_prefix(&path)?,
         }
     } else {
         std::env::current_dir().map(|cwd| cwd.join(path))?
     };
     Ok(path)
+}
+
+fn canonicalize_existing_prefix(path: &Path) -> std::io::Result<PathBuf> {
+    let mut cursor = path;
+    let mut missing: Vec<OsString> = Vec::new();
+
+    loop {
+        if cursor.exists() {
+            let mut canonical = cursor.canonicalize()?;
+            for component in missing.iter().rev() {
+                canonical.push(component);
+            }
+            return Ok(canonical);
+        }
+
+        let Some(file_name) = cursor.file_name() else {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!(
+                    "managed directory path cannot be resolved: {}",
+                    path.display()
+                ),
+            ));
+        };
+        missing.push(file_name.to_os_string());
+
+        let Some(parent) = cursor.parent() else {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!(
+                    "managed directory path cannot be resolved: {}",
+                    path.display()
+                ),
+            ));
+        };
+        cursor = parent;
+    }
 }
 
 /// Persisted queued message for offline/degraded mode.

@@ -43,6 +43,34 @@ use crate::tui::views::ViewStack;
 
 // === Types ===
 
+/// Scale of the active swarm orchestrator wrapper.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SwarmMode {
+    /// Default `/swarm`: a few focused workers plus the orchestrator.
+    #[default]
+    Standard,
+    /// `/swarm-big`: a large worker pool plus the orchestrator.
+    Big,
+}
+
+impl SwarmMode {
+    #[must_use]
+    pub fn command(self) -> &'static str {
+        match self {
+            Self::Standard => "/swarm",
+            Self::Big => "/swarm-big",
+        }
+    }
+
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Standard => "Swarm",
+            Self::Big => "Swarm-big",
+        }
+    }
+}
+
 /// State machine for onboarding new users.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OnboardingState {
@@ -973,7 +1001,8 @@ pub struct App {
     pub tool_log: Vec<String>,
     /// Active skill to apply to next user message
     pub active_skill: Option<String>,
-    /// When true, the user has activated swarm mode via `/swarm on`.
+    /// When true, the user has activated swarm mode via `/swarm on`
+    /// or `/swarm-big on`.
     /// While active, every outbound user message is wrapped with the
     /// stable orchestrator brief in `prompts::swarm_orchestrator_wrap`
     /// so the assistant decomposes the request and dispatches parallel
@@ -983,9 +1012,14 @@ pub struct App {
     /// serialized into saved sessions today (the user re-activates
     /// after `/load`).
     pub swarm_active: bool,
+    /// Which orchestrator wrapper is active while `swarm_active` is true.
+    /// Defaults back to `Standard` on a fresh app boot and is not serialized
+    /// into saved sessions today.
+    pub swarm_mode: SwarmMode,
     /// Optional user-pinned session brief surfaced inside the swarm
-    /// orchestrator wrapper. Set via `/swarm brief <text>` and cleared
-    /// with `/swarm brief clear`. Lets the user park standing context
+    /// orchestrator wrapper. Set via `/swarm brief <text>` or
+    /// `/swarm-big brief <text>` and cleared with `brief clear`. Lets the
+    /// user park standing context
     /// (e.g. "focus on the auth crate; don't touch web/") without
     /// re-stating it every turn.
     pub swarm_brief: Option<String>,
@@ -1598,6 +1632,7 @@ impl App {
             tool_log: Vec::new(),
             active_skill: None,
             swarm_active: false,
+            swarm_mode: SwarmMode::Standard,
             swarm_brief: None,
             cached_skills,
             tool_cells: HashMap::new(),

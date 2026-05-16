@@ -301,6 +301,7 @@ pub enum MessageId {
     CmdStatuslineDescription,
     CmdSubagentsDescription,
     CmdSwarmDescription,
+    CmdSwarmBigDescription,
     CmdSystemDescription,
     CmdTaskDescription,
     CmdTokensDescription,
@@ -532,6 +533,7 @@ pub const ALL_MESSAGE_IDS: &[MessageId] = &[
     MessageId::CmdStatuslineDescription,
     MessageId::CmdSubagentsDescription,
     MessageId::CmdSwarmDescription,
+    MessageId::CmdSwarmBigDescription,
     MessageId::CmdSystemDescription,
     MessageId::CmdTaskDescription,
     MessageId::CmdTokensDescription,
@@ -981,6 +983,9 @@ fn english(id: MessageId) -> &'static str {
         MessageId::CmdSwarmDescription => {
             "Toggle orchestrator-led swarm mode that fans tasks out to parallel worker sub-agents (cache-aware)"
         }
+        MessageId::CmdSwarmBigDescription => {
+            "Toggle big swarm mode that fans tasks out to 10-100 worker sub-agents plus an orchestrator (cache-aware)"
+        }
         MessageId::CmdSystemDescription => "Show current system prompt",
         MessageId::CmdTaskDescription => "Manage background tasks",
         MessageId::CmdTokensDescription => "Show token usage for session",
@@ -1366,6 +1371,9 @@ fn japanese(id: MessageId) -> Option<&'static str> {
         MessageId::CmdSwarmDescription => {
             "オーケストレーター主導のスウォームモードを切替え、タスクを並列ワーカーサブエージェントに分配（キャッシュ対応）"
         }
+        MessageId::CmdSwarmBigDescription => {
+            "10〜100 個のワーカーサブエージェントとオーケストレーターに分配する大規模スウォームモードを切替え（キャッシュ対応）"
+        }
         MessageId::CmdSystemDescription => "現在のシステムプロンプトを表示",
         MessageId::CmdTaskDescription => "バックグラウンドタスクを管理",
         MessageId::CmdTokensDescription => "セッションのトークン使用量を表示",
@@ -1702,6 +1710,9 @@ fn chinese_simplified(id: MessageId) -> Option<&'static str> {
         MessageId::CmdSwarmDescription => {
             "切换由编排器主导的蜂群模式，将任务并行分发给工作子代理（缓存友好）"
         }
+        MessageId::CmdSwarmBigDescription => {
+            "切换大型蜂群模式，将任务分发给 10-100 个工作子代理和一个编排器（缓存友好）"
+        }
         MessageId::CmdSystemDescription => "显示当前系统提示词",
         MessageId::CmdTaskDescription => "管理后台任务",
         MessageId::CmdTokensDescription => "显示本次会话的 token 用量",
@@ -2037,6 +2048,9 @@ fn portuguese_brazil(id: MessageId) -> Option<&'static str> {
         MessageId::CmdSubagentsDescription => "Listar o status dos sub-agentes",
         MessageId::CmdSwarmDescription => {
             "Alternar o modo enxame liderado pelo orquestrador que distribui tarefas em paralelo a sub-agentes trabalhadores (com cache)"
+        }
+        MessageId::CmdSwarmBigDescription => {
+            "Alternar o modo enxame grande que distribui tarefas a 10-100 sub-agentes trabalhadores mais um orquestrador (com cache)"
         }
         MessageId::CmdSystemDescription => "Exibir o prompt de sistema atual",
         MessageId::CmdTaskDescription => "Gerenciar tarefas em segundo plano",
@@ -2425,6 +2439,9 @@ fn spanish_latin_america(id: MessageId) -> Option<&'static str> {
         MessageId::CmdSubagentsDescription => "Listar el estado de los sub-agentes",
         MessageId::CmdSwarmDescription => {
             "Alternar el modo enjambre dirigido por el orquestador que reparte tareas en paralelo a sub-agentes trabajadores (consciente de caché)"
+        }
+        MessageId::CmdSwarmBigDescription => {
+            "Alternar el modo enjambre grande que reparte tareas a 10-100 sub-agentes trabajadores más un orquestador (consciente de caché)"
         }
         MessageId::CmdSystemDescription => "Mostrar el prompt de sistema actual",
         MessageId::CmdTaskDescription => "Gestionar tareas en segundo plano",

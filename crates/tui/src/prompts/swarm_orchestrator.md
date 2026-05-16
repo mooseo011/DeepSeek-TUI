@@ -97,7 +97,7 @@ Swarm mode exists to do **more work for fewer tokens**, not the opposite. Follow
 
 The user sees their own message and a live sidebar of running agents. Your reply should:
 
-- Open with one short line naming the dispatch (e.g. *"Dispatching `worker_search`, `worker_patch`, `worker_verify`..."*) or naming the direct-edit path (e.g. *"Single-file edit — landing it directly, no worker fan-out."*).
+- Open with one short line naming the dispatch (e.g. *"Dispatching `worker_search`, `worker_patch`, `worker_verify`..."*) or, for tiny direct edits, naming the verifier/explore worker that will confirm the direct work.
 - After `agent_eval` returns (and after any orchestrator-side edits), deliver the **integrated answer** — what changed, what was verified, what remains. Reference workers by name when explaining how you know something.
 - End with any open questions or the next step the user should approve.
 

@@ -723,8 +723,7 @@ fn exec_shell(root: &Path, command: &str) -> Result<String> {
                 .current_dir(&root)
                 .output();
 
-            output
-                .with_context(|| format!("failed to execute shell command: {command}"))
+            output.with_context(|| format!("failed to execute shell command: {command}"))
         });
 
         match handle.join() {
@@ -741,9 +740,7 @@ fn exec_shell(root: &Path, command: &str) -> Result<String> {
                 let stdout = String::from_utf8_lossy(&output.stdout).to_string();
                 Ok(stdout.trim().to_string())
             }
-            Err(_) => {
-                Err(anyhow!("shell command timed out after 120s: {command}"))
-            }
+            Err(_) => Err(anyhow!("shell command timed out after 120s: {command}")),
         }
     })
 }

@@ -3844,7 +3844,18 @@ fn queued_message_content_for_app(
         // `RegistryToolExecutor::execute_tool` approval check). Plan and
         // Agent both reject those tools inside workers.
         let parent_yolo = matches!(app.mode, crate::tui::app::AppMode::Yolo);
-        crate::prompts::swarm_orchestrator_wrap(&base, app.swarm_brief.as_deref(), parent_yolo)
+        match app.swarm_mode {
+            crate::tui::app::SwarmMode::Standard => crate::prompts::swarm_orchestrator_wrap(
+                &base,
+                app.swarm_brief.as_deref(),
+                parent_yolo,
+            ),
+            crate::tui::app::SwarmMode::Big => crate::prompts::swarm_big_orchestrator_wrap(
+                &base,
+                app.swarm_brief.as_deref(),
+                parent_yolo,
+            ),
+        }
     } else {
         base
     }

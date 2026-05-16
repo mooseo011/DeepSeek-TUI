@@ -144,11 +144,10 @@ impl DeepSeekClient {
         }
 
         let response_text = response.text().await.unwrap_or_default();
-        let value: Value =
-            serde_json::from_str(&response_text).with_context(|| {
-                let preview = &response_text[..response_text.len().min(500)];
-                format!("Failed to parse Chat API JSON. Response preview: {preview}")
-            })?;
+        let value: Value = serde_json::from_str(&response_text).with_context(|| {
+            let preview = &response_text[..response_text.len().min(500)];
+            format!("Failed to parse Chat API JSON. Response preview: {preview}")
+        })?;
         parse_chat_message(&value)
     }
 }
