@@ -865,6 +865,37 @@ mod tests {
     }
 
     #[test]
+    fn swarm_orchestrator_brief_tells_the_model_to_actually_write_files() {
+        // Regression guard: an earlier revision of this brief biased the
+        // orchestrator toward read-only "report back" workers, which
+        // produced CHANGES: None turns even when the user asked for code
+        // edits. The brief must keep telling the orchestrator that
+        //
+        //   (a) the turn is only successful when files on disk actually
+        //       change (when the user asked for changes), and
+        //   (b) sub-agents in a non-YOLO parent cannot perform writes —
+        //       the orchestrator does them itself in that case.
+        for needle in [
+            // Output contract awareness.
+            "CHANGES",
+            // Imperative dispatch language, not recon-only.
+            "edit_file",
+            "apply_patch",
+            "write_file",
+            // Approval-gating awareness so the orchestrator pivots when
+            // workers can't write.
+            "requires approval",
+            // Explicit fallback path when workers can't write.
+            "writes yourself",
+        ] {
+            assert!(
+                SWARM_ORCHESTRATOR_BRIEF.contains(needle),
+                "swarm orchestrator brief missing required term: {needle}"
+            );
+        }
+    }
+
+    #[test]
     fn swarm_orchestrator_wrap_includes_request_and_brief() {
         let wrapped = swarm_orchestrator_wrap("fix the failing test", None);
         assert!(wrapped.contains("<swarm_orchestrator>"));
